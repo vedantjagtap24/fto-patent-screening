@@ -105,7 +105,7 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // FIXED: Simple batch processing with realistic progress simulation
+  // FIXED: Simple batch processing with WORKING progress simulation
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
@@ -130,24 +130,33 @@ const MainLayout = ({ user, onLogout }) => {
     setStartTime(Date.now());
     setCurrentlyProcessing(`Preparing to analyze ${claims.length} patents...`);
 
+    // Start progress simulation immediately
+    let simulatedProgress = 0;
+    let simulatedCount = 0;
+    
+    const progressInterval = setInterval(() => {
+      if (simulatedProgress < 90) {
+        // Increment progress more aggressively
+        const increment = Math.random() * 8 + 2; // 2-10% increments
+        simulatedProgress = Math.min(simulatedProgress + increment, 90);
+        simulatedCount = Math.round((simulatedProgress / 100) * claims.length);
+        
+        setProgress(Math.round(simulatedProgress));
+        setProcessedCount(simulatedCount);
+        
+        // Show different messages based on progress
+        if (simulatedProgress < 30) {
+          setCurrentlyProcessing(`Starting analysis... ${Math.round(simulatedProgress)}%`);
+        } else if (simulatedProgress < 60) {
+          setCurrentlyProcessing(`Analyzing patents... ${Math.round(simulatedProgress)}%`);
+        } else {
+          setCurrentlyProcessing(`Almost done... ${Math.round(simulatedProgress)}%`);
+        }
+      }
+    }, 1500); // Update every 1.5 seconds
+
     try {
       console.log('Sending request to /analyze-all-claims...');
-      
-      // Start realistic progress simulation
-      let simulatedProgress = 0;
-      let simulatedCount = 0;
-      const progressInterval = setInterval(() => {
-        if (simulatedProgress < 95) {
-          // Simulate realistic progress increments
-          const increment = Math.random() * 3 + 1; // 1-4% increments
-          simulatedProgress = Math.min(simulatedProgress + increment, 95);
-          simulatedCount = Math.round((simulatedProgress / 100) * claims.length);
-          
-          setProgress(Math.round(simulatedProgress));
-          setProcessedCount(simulatedCount);
-          setCurrentlyProcessing(`Analyzing patents... ${Math.round(simulatedProgress)}%`);
-        }
-      }, 2000); // Update every 2 seconds
 
       const response = await fetch('/analyze-all-claims', {
         method: 'POST',
@@ -173,14 +182,16 @@ const MainLayout = ({ user, onLogout }) => {
         throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
       }
 
-      // Show 98% while parsing response
-      setProgress(98);
+      // Show 95% while parsing response
+      setProgress(95);
+      setProcessedCount(Math.round(claims.length * 0.95));
       setCurrentlyProcessing('Finalizing results...');
 
       const data = await response.json();
       console.log('Received data:', data);
       
       if (data.success && data.results) {
+        // Final completion
         setResults(data.results);
         setProcessedCount(data.totalProcessed);
         setProgress(100);
@@ -195,6 +206,9 @@ const MainLayout = ({ user, onLogout }) => {
     } catch (error) {
       console.error('Error in batch processing:', error);
       setError(`Error processing claims: ${error.message}`);
+      
+      // Clear interval on error too
+      clearInterval(progressInterval);
     } finally {
       setIsProcessing(false);
     }
