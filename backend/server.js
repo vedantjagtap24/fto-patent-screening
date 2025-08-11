@@ -1,10 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const OpenAI = require('openai');
 require('dotenv').config();
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -12,6 +13,9 @@ const openai = new OpenAI({
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
+
+// Serve static files from React build
+app.use(express.static(path.join(__dirname, '../frontend/build')));
 
 // NEW: Server-Sent Events endpoint for real-time progress
 app.get('/analyze-stream', async (req, res) => {
@@ -226,7 +230,7 @@ ${features.map((feature, index) => `  "feature_${index + 1}": {
 IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not the full text content.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     messages: [
       {
         role: 'system',
@@ -285,6 +289,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Backend is running!' });
 });
 
+// Serve React app for all non-API routes (IMPORTANT: This must be at the end)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+});
+
 app.listen(port, () => {
-  console.log(`Batch processing backend server running at http://localhost:${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });

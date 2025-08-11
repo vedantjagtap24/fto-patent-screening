@@ -65,7 +65,7 @@ const MainLayout = ({ user, onLogout }) => {
 
   const checkBackendStatus = async () => {
     try {
-      const response = await fetch('http://localhost:3001/health');
+      const response = await fetch('/health');
       if (response.ok) {
         setBackendStatus('connected');
       } else {
@@ -178,7 +178,7 @@ const MainLayout = ({ user, onLogout }) => {
       console.log('Claims count:', claims.length);
       console.log('Features:', features);
       
-      const response = await fetch('http://localhost:3001/analyze-all-claims', {
+      const response = await fetch('/analyze-all-claims', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
