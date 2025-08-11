@@ -321,7 +321,7 @@ ${features.map((feature, index) => `  "feature_${index + 1}": {
 IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not the full text content.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-4.1',
     messages: [
       {
         role: 'system',
