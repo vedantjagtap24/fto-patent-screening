@@ -13,7 +13,7 @@ const MainLayout = ({ user, onLogout }) => {
   const [backendStatus, setBackendStatus] = useState('checking');
   const dropdownRef = useRef(null);
 
-  // MOVED FROM SCREENING: All processing state
+  // Processing state
   const [file, setFile] = useState(null);
   const [claims, setClaims] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -38,7 +38,6 @@ const MainLayout = ({ user, onLogout }) => {
     checkBackendStatus();
   }, []);
 
-  // MOVED FROM SCREENING: Timer for elapsed time
   useEffect(() => {
     let interval;
     if (isProcessing && startTime) {
@@ -49,7 +48,6 @@ const MainLayout = ({ user, onLogout }) => {
     return () => clearInterval(interval);
   }, [isProcessing, startTime]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -76,7 +74,6 @@ const MainLayout = ({ user, onLogout }) => {
     }
   };
 
-  // MOVED FROM SCREENING: Format elapsed time
   const formatElapsedTime = (milliseconds) => {
     const seconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -91,7 +88,6 @@ const MainLayout = ({ user, onLogout }) => {
     }
   };
 
-  // MOVED FROM SCREENING: Add feature
   const addFeature = (featureText) => {
     if (featureText.trim() && !features.includes(featureText.trim())) {
       setFeatures([...features, featureText.trim()]);
@@ -100,12 +96,11 @@ const MainLayout = ({ user, onLogout }) => {
     return false;
   };
 
-  // MOVED FROM SCREENING: Remove feature
   const removeFeature = (index) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // FIXED: Simple batch processing with WORKING progress simulation
+  // Real-time progress tracking with Server-Sent Events
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
@@ -128,41 +123,17 @@ const MainLayout = ({ user, onLogout }) => {
     setProgress(0);
     setProcessedCount(0);
     setStartTime(Date.now());
-    setCurrentlyProcessing(`Preparing to analyze ${claims.length} patents...`);
-
-    // Start progress simulation immediately
-    let simulatedProgress = 0;
-    let simulatedCount = 0;
-    
-    const progressInterval = setInterval(() => {
-      if (simulatedProgress < 90) {
-        // Increment progress more aggressively
-        const increment = Math.random() * 8 + 2; // 2-10% increments
-        simulatedProgress = Math.min(simulatedProgress + increment, 90);
-        simulatedCount = Math.round((simulatedProgress / 100) * claims.length);
-        
-        setProgress(Math.round(simulatedProgress));
-        setProcessedCount(simulatedCount);
-        
-        // Show different messages based on progress
-        if (simulatedProgress < 30) {
-          setCurrentlyProcessing(`Starting analysis... ${Math.round(simulatedProgress)}%`);
-        } else if (simulatedProgress < 60) {
-          setCurrentlyProcessing(`Analyzing patents... ${Math.round(simulatedProgress)}%`);
-        } else {
-          setCurrentlyProcessing(`Almost done... ${Math.round(simulatedProgress)}%`);
-        }
-      }
-    }, 1500); // Update every 1.5 seconds
+    setCurrentlyProcessing('Initializing analysis...');
 
     try {
-      console.log('Sending request to /analyze-all-claims...');
+      console.log('Starting real-time analysis with Server-Sent Events...');
 
-      const response = await fetch('/analyze-all-claims', {
+      // Use the streaming endpoint for real-time progress
+      const response = await fetch('/analyze-all-claims-stream', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'text/event-stream'
         },
         body: JSON.stringify({
           claims: claims,
@@ -170,51 +141,81 @@ const MainLayout = ({ user, onLogout }) => {
         })
       });
 
-      // Clear the progress simulation
-      clearInterval(progressInterval);
-
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Error response:', errorText);
         throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
       }
 
-      // Show 95% while parsing response
-      setProgress(95);
-      setProcessedCount(Math.round(claims.length * 0.95));
-      setCurrentlyProcessing('Finalizing results...');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      const data = await response.json();
-      console.log('Received data:', data);
-      
-      if (data.success && data.results) {
-        // Final completion
-        setResults(data.results);
-        setProcessedCount(data.totalProcessed);
-        setProgress(100);
-        setCurrentlyProcessing('Analysis complete!');
+      while (true) {
+        const { done, value } = await reader.read();
         
-        // Clear the completion message after 3 seconds
-        setTimeout(() => setCurrentlyProcessing(''), 3000);
-      } else {
-        throw new Error('Failed to process claims batch');
+        if (done) {
+          console.log('Stream completed');
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              console.log('Received progress update:', data);
+              
+              switch (data.type) {
+                case 'progress':
+                case 'processing_claim':
+                case 'claim_completed':
+                case 'batch_completed':
+                  setProgress(data.progress);
+                  setProcessedCount(data.processedCount);
+                  setCurrentlyProcessing(data.message);
+                  if (data.currentClaim) {
+                    setCurrentlyProcessing(`Analyzing patent ${data.currentClaim}...`);
+                  }
+                  break;
+                  
+                case 'claim_error':
+                  setProgress(data.progress);
+                  setProcessedCount(data.processedCount);
+                  setCurrentlyProcessing(`Error: ${data.message}`);
+                  console.warn('Claim processing error:', data.error);
+                  break;
+                  
+                case 'completed':
+                  setProgress(100);
+                  setProcessedCount(data.totalCount);
+                  setCurrentlyProcessing('Analysis complete!');
+                  setResults(data.results);
+                  
+                  // Clear the completion message after 3 seconds
+                  setTimeout(() => setCurrentlyProcessing(''), 3000);
+                  break;
+                  
+                case 'error':
+                  throw new Error(data.message || 'Analysis failed');
+              }
+              
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError, 'Line:', line);
+            }
+          }
+        }
       }
 
     } catch (error) {
-      console.error('Error in batch processing:', error);
+      console.error('Error in real-time analysis:', error);
       setError(`Error processing claims: ${error.message}`);
-      
-      // Clear interval on error too
-      clearInterval(progressInterval);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // MOVED FROM SCREENING: Clear all data
   const clearAllData = () => {
     setFile(null);
     setClaims([]);
@@ -242,7 +243,6 @@ const MainLayout = ({ user, onLogout }) => {
         return (
           <Screening 
             backendStatus={backendStatus}
-            // Pass all processing state and functions
             file={file}
             setFile={setFile}
             claims={claims}
