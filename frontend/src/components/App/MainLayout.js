@@ -105,7 +105,7 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // UPDATED: Real-time analysis with Server-Sent Events
+  // UPDATED: Real-time analysis with CORRECT progress calculation AND NO DELAYS
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
@@ -172,21 +172,30 @@ const MainLayout = ({ user, onLogout }) => {
               if (line.startsWith('data: ')) {
                 try {
                   const data = JSON.parse(line.slice(6)); // Remove 'data: ' prefix
-                  console.log('SSE Event received:', data.type, data);
+                  console.log('SSE Event received:', data.type, `${data.processed}/${data.total} (${data.percentage}%)`);
                   
                   switch (data.type) {
                     case 'progress':
+                      // Use the percentage calculated by the server
                       setProgress(data.percentage || 0);
                       setProcessedCount(data.processed || 0);
                       setCurrentlyProcessing(data.currentlyProcessing || data.message || '');
+                      
+                      // Log the actual calculation for debugging
+                      if (data.processed !== undefined && data.total) {
+                        const calculatedPercentage = Math.round((data.processed / data.total) * 100);
+                        console.log(`Progress: ${data.processed}/${data.total} = ${calculatedPercentage}%`);
+                      }
                       break;
                       
                     case 'complete':
                       if (data.success && data.results) {
                         setResults(data.results);
                         setProcessedCount(data.totalProcessed);
-                        setProgress(100);
+                        setProgress(100); // Ensure it shows 100% on completion
                         setCurrentlyProcessing('Analysis complete!');
+                        
+                        console.log(`Analysis completed: ${data.totalProcessed} patents processed`);
                         
                         // Clear processing message after a delay
                         setTimeout(() => setCurrentlyProcessing(''), 3000);

@@ -108,7 +108,7 @@ app.get('/health', (req, res) => {
   }
 });
 
-// UPDATED: Main analysis endpoint with real-time progress via Server-Sent Events
+// UPDATED: Main analysis endpoint with CORRECT percentage calculation AND NO DELAYS
 app.post('/analyze-all-claims', async (req, res) => {
   try {
     const { claims, features } = req.body;
@@ -144,25 +144,25 @@ app.post('/analyze-all-claims', async (req, res) => {
       const publicationNumber = findPublicationNumber(claim);
       
       try {
-        // Send progress update before processing
-        const percentage = Math.round((processedCount / totalClaims) * 100);
+        // Send progress update BEFORE processing (showing what we're about to process)
         res.write(`data: ${JSON.stringify({
           type: 'progress',
           processed: processedCount,
           total: totalClaims,
-          percentage: percentage,
+          percentage: Math.round((processedCount / totalClaims) * 100),
           message: `Analyzing patent ${claimNumber}...`,
           currentlyProcessing: `Patent ${claimNumber}`
         })}\n\n`);
 
-        // Analyze the claim
+        // Analyze the claim (NO DELAY - FULL SPEED!)
         const analysis = await analyzeSingleClaim(claimText, claimNumber, features, claims);
         const result = { ...analysis, publicationNumber };
         results.push(result);
         
+        // INCREMENT the processed count AFTER successful processing
         processedCount++;
         
-        // Send updated progress
+        // Send updated progress AFTER processing
         const newPercentage = Math.round((processedCount / totalClaims) * 100);
         res.write(`data: ${JSON.stringify({
           type: 'progress',
@@ -170,16 +170,17 @@ app.post('/analyze-all-claims', async (req, res) => {
           total: totalClaims,
           percentage: newPercentage,
           message: `Completed ${processedCount} of ${totalClaims} patents`,
-          currentlyProcessing: processedCount < totalClaims ? `Processing next patent...` : `Finalizing results...`
+          currentlyProcessing: processedCount < totalClaims ? `Moving to next patent...` : `Finalizing results...`
         })}\n\n`);
         
-        // Small delay to prevent overwhelming the client
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // NO DELAY! Process at full speed!
         
       } catch (error) {
         console.error(`Error processing claim ${claimNumber}:`, error);
         const errorResult = createErrorResult(claimNumber, features, publicationNumber, i);
         results.push(errorResult);
+        
+        // INCREMENT even for errors
         processedCount++;
         
         // Send progress even for errors
@@ -189,18 +190,19 @@ app.post('/analyze-all-claims', async (req, res) => {
           processed: processedCount,
           total: totalClaims,
           percentage: newPercentage,
-          message: `Completed ${processedCount} of ${totalClaims} patents (with errors)`,
+          message: `Completed ${processedCount} of ${totalClaims} patents (some with errors)`,
           currentlyProcessing: `Error processing patent ${claimNumber}, continuing...`
         })}\n\n`);
       }
     }
     
-    // Send completion with results
+    // Send completion with results (should be exactly 100%)
     res.write(`data: ${JSON.stringify({
       type: 'complete',
       success: true,
       totalProcessed: results.length,
       results: results,
+      percentage: 100,
       message: `Analysis complete! Processed ${results.length} patents.`
     })}\n\n`);
     
@@ -253,6 +255,7 @@ app.get('/analyze-stream', async (req, res) => {
           type: 'progress',
           processed: processedCount,
           total: totalClaims,
+          percentage: Math.round((processedCount / totalClaims) * 100),
           currentClaim: claimNumber
         })}\n\n`);
 
@@ -267,9 +270,6 @@ app.get('/analyze-stream', async (req, res) => {
         })}\n\n`);
         
         processedCount++;
-        
-        // Small delay to prevent overwhelming the client
-        await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
         console.error(`Error processing claim ${claimNumber}:`, error);
