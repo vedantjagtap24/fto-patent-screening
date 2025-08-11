@@ -6,11 +6,10 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 const app = express();
-// Force Railway port or fallback
 const port = process.env.PORT || process.env.RAILWAY_PORT || 3001;
 
 console.log('Starting server...');
-console.log('Available environment variables:');
+console.log('Environment variables:');
 console.log('PORT:', process.env.PORT);
 console.log('RAILWAY_PORT:', process.env.RAILWAY_PORT);
 console.log('Using port:', port);
@@ -20,7 +19,6 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Add general request logging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path} from ${req.ip || 'unknown'}`);
   next();
@@ -29,62 +27,47 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 
-// Debug: Check if build directory exists
+// FIXED: Proper static file serving for Railway
 console.log('Current working directory:', process.cwd());
 console.log('__dirname:', __dirname);
 
-// List what's actually in the container
-console.log('Contents of /app:', fs.readdirSync('/app'));
-if (fs.existsSync('/app/frontend')) {
-  console.log('Contents of /app/frontend:', fs.readdirSync('/app/frontend'));
-} else {
-  console.log('/app/frontend does not exist');
-}
+// FIXED: Use the correct path based on Railway's structure
+const buildPath = path.join(__dirname, '../frontend/build');
 
-// Try multiple possible paths
-const buildPath1 = path.join(__dirname, '../frontend/build');
-const buildPath2 = path.join(process.cwd(), 'frontend/build');
-const buildPath3 = '/app/frontend/build';
-const buildPath4 = path.join(__dirname, 'frontend/build'); // Since __dirname is /app
-
-console.log('Build path 1 (relative):', buildPath1, 'exists:', fs.existsSync(buildPath1));
-console.log('Build path 2 (from cwd):', buildPath2, 'exists:', fs.existsSync(buildPath2));
-console.log('Build path 3 (absolute):', buildPath3, 'exists:', fs.existsSync(buildPath3));
-console.log('Build path 4 (direct):', buildPath4, 'exists:', fs.existsSync(buildPath4));
-
-// Use the path that exists
-let buildPath;
-if (fs.existsSync(buildPath4)) {
-  buildPath = buildPath4;
-} else if (fs.existsSync(buildPath1)) {
-  buildPath = buildPath1;
-} else if (fs.existsSync(buildPath2)) {
-  buildPath = buildPath2;
-} else if (fs.existsSync(buildPath3)) {
-  buildPath = buildPath3;
-} else {
-  console.log('ERROR: No build directory found at any expected location');
-  buildPath = buildPath2; // fallback
-}
-
-console.log('Using build path:', buildPath);
+console.log('Build path:', buildPath);
+console.log('Build path exists:', fs.existsSync(buildPath));
 
 if (fs.existsSync(buildPath)) {
   console.log('Build directory contents:', fs.readdirSync(buildPath));
+  
   // Serve static files from React build
   app.use(express.static(buildPath));
-  console.log('Static files middleware added');
+  console.log('✅ Static files middleware added for path:', buildPath);
 } else {
-  console.log('WARNING: Build directory not found!');
+  console.log('❌ ERROR: Build directory not found at:', buildPath);
+  
+  // Try alternative paths
+  const altPath1 = path.join(process.cwd(), 'frontend/build');
+  const altPath2 = '/app/frontend/build';
+  
+  console.log('Trying alternative path 1:', altPath1, 'exists:', fs.existsSync(altPath1));
+  console.log('Trying alternative path 2:', altPath2, 'exists:', fs.existsSync(altPath2));
+  
+  if (fs.existsSync(altPath1)) {
+    app.use(express.static(altPath1));
+    console.log('✅ Using alternative path 1:', altPath1);
+  } else if (fs.existsSync(altPath2)) {
+    app.use(express.static(altPath2));
+    console.log('✅ Using alternative path 2:', altPath2);
+  }
 }
 
-// Simple test endpoint
+// Test endpoints
 app.get('/test', (req, res) => {
   console.log('TEST endpoint hit');
   res.send('Server is alive!');
 });
 
-// Root endpoint test
 app.get('/ping', (req, res) => {
   console.log('PING endpoint hit');
   res.send('pong');
@@ -108,7 +91,7 @@ app.get('/health', (req, res) => {
   }
 });
 
-// SIMPLIFIED: Back to batch processing - NO SSE complexity
+// Patent analysis endpoint
 app.post('/analyze-all-claims', async (req, res) => {
   try {
     const { claims, features } = req.body;
@@ -125,13 +108,8 @@ app.post('/analyze-all-claims', async (req, res) => {
       const batchPromises = batch.map(async (claim, batchIndex) => {
         const globalIndex = i + batchIndex;
         
-        // IMPROVED: Better claim text extraction
         const claimText = claim.Claims || claim.claims || claim.Claim || claim.claim || '';
-        
-        // IMPROVED: Better claim number extraction
         const claimNumber = claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (globalIndex + 1);
-        
-        // IMPROVED: Better publication number extraction with flexible column names
         const publicationNumber = findPublicationNumber(claim);
         
         try {
@@ -172,7 +150,6 @@ app.post('/analyze-all-claims', async (req, res) => {
   }
 });
 
-// IMPROVED: Flexible publication number detection
 function findPublicationNumber(claim) {
   const possibleColumns = [
     'Publication Number',
@@ -187,14 +164,12 @@ function findPublicationNumber(claim) {
     'PatentNumber'
   ];
   
-  // Try exact matches first
   for (const col of possibleColumns) {
     if (claim[col] && claim[col] !== 'N/A' && claim[col] !== '') {
       return claim[col];
     }
   }
   
-  // Try case-insensitive partial matches
   const columns = Object.keys(claim);
   for (const column of columns) {
     const lowerColumn = column.toLowerCase();
@@ -236,7 +211,7 @@ ${features.map((feature, index) => `  "feature_${index + 1}": {
 IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not the full text content.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     messages: [
       {
         role: 'system',
@@ -297,48 +272,39 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-// Serve React app for all non-API routes (IMPORTANT: This must be at the end)
+// FIXED: Serve React app for all non-API routes (MUST be last)
 app.get('*', (req, res) => {
-  // Use the same buildPath logic for index.html
-  let indexPath;
-  const indexPath1 = path.join(__dirname, '../frontend/build', 'index.html');
-  const indexPath2 = path.join(process.cwd(), 'frontend/build', 'index.html');
-  const indexPath3 = '/app/frontend/build/index.html';
-  const indexPath4 = path.join(__dirname, 'frontend/build', 'index.html'); // Since __dirname is /app
+  console.log('Serving React app for route:', req.path);
   
-  if (fs.existsSync(indexPath4)) {
-    indexPath = indexPath4;
-  } else if (fs.existsSync(indexPath1)) {
-    indexPath = indexPath1;
-  } else if (fs.existsSync(indexPath2)) {
-    indexPath = indexPath2;
-  } else if (fs.existsSync(indexPath3)) {
-    indexPath = indexPath3;
-  } else {
-    indexPath = indexPath2; // fallback
-  }
+  const indexPath = path.join(__dirname, '../frontend/build/index.html');
   
-  console.log('Serving index.html for route:', req.path);
   console.log('Index.html path:', indexPath);
   console.log('Index.html exists:', fs.existsSync(indexPath));
   
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    console.log('Available files in /app:', fs.readdirSync('/app'));
-    res.status(404).send(`Frontend build not found. Tried: ${indexPath}. Available files: ${fs.readdirSync('/app').join(', ')}`);
+    // Try alternative paths
+    const altIndexPath1 = path.join(process.cwd(), 'frontend/build/index.html');
+    const altIndexPath2 = '/app/frontend/build/index.html';
+    
+    if (fs.existsSync(altIndexPath1)) {
+      console.log('Using alternative index path 1:', altIndexPath1);
+      res.sendFile(altIndexPath1);
+    } else if (fs.existsSync(altIndexPath2)) {
+      console.log('Using alternative index path 2:', altIndexPath2);
+      res.sendFile(altIndexPath2);
+    } else {
+      console.log('❌ No index.html found at any path');
+      res.status(404).send(`Frontend build not found. Tried: ${indexPath}, ${altIndexPath1}, ${altIndexPath2}`);
+    }
   }
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running at http://0.0.0.0:${port}`);
-  console.log('Server started successfully!');
+  console.log(`🚀 Server running at http://0.0.0.0:${port}`);
+  console.log('✅ Server started successfully!');
   console.log('Environment:', process.env.NODE_ENV || 'development');
   console.log('Railway PORT provided:', !!process.env.PORT);
   console.log('Actual port used:', port);
-  
-  // Test immediate health check
-  setTimeout(() => {
-    console.log('Server self-test: attempting internal health check...');
-  }, 2000);
 });
