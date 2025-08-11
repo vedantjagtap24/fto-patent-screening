@@ -23,18 +23,30 @@ app.use(express.json({ limit: '100mb' }));
 console.log('Current working directory:', process.cwd());
 console.log('__dirname:', __dirname);
 
+// List what's actually in the container
+console.log('Contents of /app:', fs.readdirSync('/app'));
+if (fs.existsSync('/app/frontend')) {
+  console.log('Contents of /app/frontend:', fs.readdirSync('/app/frontend'));
+} else {
+  console.log('/app/frontend does not exist');
+}
+
 // Try multiple possible paths
 const buildPath1 = path.join(__dirname, '../frontend/build');
 const buildPath2 = path.join(process.cwd(), 'frontend/build');
 const buildPath3 = '/app/frontend/build';
+const buildPath4 = path.join(__dirname, 'frontend/build'); // Since __dirname is /app
 
 console.log('Build path 1 (relative):', buildPath1, 'exists:', fs.existsSync(buildPath1));
 console.log('Build path 2 (from cwd):', buildPath2, 'exists:', fs.existsSync(buildPath2));
 console.log('Build path 3 (absolute):', buildPath3, 'exists:', fs.existsSync(buildPath3));
+console.log('Build path 4 (direct):', buildPath4, 'exists:', fs.existsSync(buildPath4));
 
 // Use the path that exists
 let buildPath;
-if (fs.existsSync(buildPath1)) {
+if (fs.existsSync(buildPath4)) {
+  buildPath = buildPath4;
+} else if (fs.existsSync(buildPath1)) {
   buildPath = buildPath1;
 } else if (fs.existsSync(buildPath2)) {
   buildPath = buildPath2;
@@ -117,8 +129,11 @@ app.get('*', (req, res) => {
   const indexPath1 = path.join(__dirname, '../frontend/build', 'index.html');
   const indexPath2 = path.join(process.cwd(), 'frontend/build', 'index.html');
   const indexPath3 = '/app/frontend/build/index.html';
+  const indexPath4 = path.join(__dirname, 'frontend/build', 'index.html'); // Since __dirname is /app
   
-  if (fs.existsSync(indexPath1)) {
+  if (fs.existsSync(indexPath4)) {
+    indexPath = indexPath4;
+  } else if (fs.existsSync(indexPath1)) {
     indexPath = indexPath1;
   } else if (fs.existsSync(indexPath2)) {
     indexPath = indexPath2;
@@ -135,8 +150,8 @@ app.get('*', (req, res) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    console.log('Available files in current directory:', fs.readdirSync(process.cwd()));
-    res.status(404).send('Frontend build not found. Check logs for path details.');
+    console.log('Available files in /app:', fs.readdirSync('/app'));
+    res.status(404).send(`Frontend build not found. Tried: ${indexPath}. Available files: ${fs.readdirSync('/app').join(', ')}`);
   }
 });
 
