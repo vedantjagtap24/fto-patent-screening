@@ -20,9 +20,32 @@ app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 
 // Debug: Check if build directory exists
-const buildPath = path.join(__dirname, '../frontend/build');
-console.log('Build path:', buildPath);
-console.log('Build directory exists:', fs.existsSync(buildPath));
+console.log('Current working directory:', process.cwd());
+console.log('__dirname:', __dirname);
+
+// Try multiple possible paths
+const buildPath1 = path.join(__dirname, '../frontend/build');
+const buildPath2 = path.join(process.cwd(), 'frontend/build');
+const buildPath3 = '/app/frontend/build';
+
+console.log('Build path 1 (relative):', buildPath1, 'exists:', fs.existsSync(buildPath1));
+console.log('Build path 2 (from cwd):', buildPath2, 'exists:', fs.existsSync(buildPath2));
+console.log('Build path 3 (absolute):', buildPath3, 'exists:', fs.existsSync(buildPath3));
+
+// Use the path that exists
+let buildPath;
+if (fs.existsSync(buildPath1)) {
+  buildPath = buildPath1;
+} else if (fs.existsSync(buildPath2)) {
+  buildPath = buildPath2;
+} else if (fs.existsSync(buildPath3)) {
+  buildPath = buildPath3;
+} else {
+  console.log('ERROR: No build directory found at any expected location');
+  buildPath = buildPath2; // fallback
+}
+
+console.log('Using build path:', buildPath);
 
 if (fs.existsSync(buildPath)) {
   console.log('Build directory contents:', fs.readdirSync(buildPath));
@@ -89,7 +112,22 @@ app.use((err, req, res, next) => {
 
 // Serve React app for all non-API routes (IMPORTANT: This must be at the end)
 app.get('*', (req, res) => {
-  const indexPath = path.join(__dirname, '../frontend/build', 'index.html');
+  // Use the same buildPath logic for index.html
+  let indexPath;
+  const indexPath1 = path.join(__dirname, '../frontend/build', 'index.html');
+  const indexPath2 = path.join(process.cwd(), 'frontend/build', 'index.html');
+  const indexPath3 = '/app/frontend/build/index.html';
+  
+  if (fs.existsSync(indexPath1)) {
+    indexPath = indexPath1;
+  } else if (fs.existsSync(indexPath2)) {
+    indexPath = indexPath2;
+  } else if (fs.existsSync(indexPath3)) {
+    indexPath = indexPath3;
+  } else {
+    indexPath = indexPath2; // fallback
+  }
+  
   console.log('Serving index.html for route:', req.path);
   console.log('Index.html path:', indexPath);
   console.log('Index.html exists:', fs.existsSync(indexPath));
@@ -97,7 +135,8 @@ app.get('*', (req, res) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(404).send('Frontend build not found');
+    console.log('Available files in current directory:', fs.readdirSync(process.cwd()));
+    res.status(404).send('Frontend build not found. Check logs for path details.');
   }
 });
 
