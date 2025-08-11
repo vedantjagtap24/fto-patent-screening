@@ -6,7 +6,7 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 
 console.log('Starting server...');
 console.log('Port:', port);
@@ -70,12 +70,21 @@ if (fs.existsSync(buildPath)) {
 
 // Health check endpoint (simplified)
 app.get('/health', (req, res) => {
-  console.log('Health check requested');
-  res.json({ 
-    status: 'Backend is running!',
-    timestamp: new Date().toISOString(),
-    buildExists: fs.existsSync(buildPath)
-  });
+  console.log('Health check requested from:', req.ip);
+  console.log('Request headers:', req.headers);
+  try {
+    res.status(200).json({ 
+      status: 'Backend is running!',
+      timestamp: new Date().toISOString(),
+      buildExists: fs.existsSync(buildPath),
+      port: port,
+      env: process.env.NODE_ENV || 'development'
+    });
+    console.log('Health check response sent successfully');
+  } catch (error) {
+    console.error('Error in health check:', error);
+    res.status(500).json({ error: 'Health check failed', message: error.message });
+  }
 });
 
 // Basic test endpoint
@@ -158,4 +167,6 @@ app.get('*', (req, res) => {
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
   console.log('Server started successfully!');
+  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log('Railway PORT provided:', !!process.env.PORT);
 });
