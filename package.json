@@ -1,0 +1,10 @@
+{
+  "name": "fto-patent-screening",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "cd backend && node server.js"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
