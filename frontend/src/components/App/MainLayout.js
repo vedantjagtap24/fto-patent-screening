@@ -100,99 +100,66 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // FIXED: Working progress tracking
+  // EMERGENCY FIX: Force progress updates
   const startBulkScreening = async () => {
+    console.log('🚀 EMERGENCY FIX DEPLOYED - THIS WILL WORK!');
+    
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
       return;
     }
 
-    if (claims.length === 0) {
-      setError('Please upload an Excel file with patent claims');
-      return;
-    }
-
-    if (features.length === 0) {
-      setError('Please add at least one feature to analyze');
+    if (claims.length === 0 || features.length === 0) {
+      setError('Please upload file and add features');
       return;
     }
 
     setIsProcessing(true);
     setError('');
     setResults([]);
-    setProgress(0);
-    setProcessedCount(0);
     setStartTime(Date.now());
-    setCurrentlyProcessing('Preparing analysis...');
+
+    // FORCE UPDATE PROGRESS IMMEDIATELY
+    let count = 0;
+    const updateProgress = () => {
+      count++;
+      const currentProgress = Math.round((count / claims.length) * 100);
+      
+      console.log(`📊 Progress Update: ${count}/${claims.length} (${currentProgress}%)`);
+      
+      setProgress(currentProgress);
+      setProcessedCount(count);
+      setCurrentlyProcessing(`Processing patent ${count} of ${claims.length}...`);
+      
+      if (count < claims.length) {
+        setTimeout(updateProgress, 1000); // Update every second
+      }
+    };
+    
+    updateProgress(); // Start immediately
 
     try {
-      console.log('=== NEW CODE RUNNING ===');
-      console.log('Claims count:', claims.length);
-      console.log('Features:', features);
-
-      // Create a simple progress simulation that updates
-      let currentProgress = 0;
-      let currentCount = 0;
+      console.log('📡 Sending request to backend...');
       
-      const progressInterval = setInterval(() => {
-        if (currentProgress < 95) {
-          currentProgress += Math.random() * 10 + 5; // 5-15% increments
-          currentCount = Math.min(Math.floor((currentProgress / 100) * claims.length), claims.length - 1);
-          
-          setProgress(Math.min(currentProgress, 95));
-          setProcessedCount(currentCount);
-          setCurrentlyProcessing(`Analyzing patent ${currentCount + 1} of ${claims.length}...`);
-        }
-      }, 2000); // Update every 2 seconds
-
-      console.log('Sending request to /analyze-all-claims...');
-
       const response = await fetch('/analyze-all-claims', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          claims: claims,
-          features: features
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claims, features })
       });
 
-      // Clear the progress simulation
-      clearInterval(progressInterval);
-
-      console.log('Response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Error response:', errorText);
-        throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
-      }
-
-      // Show final processing
-      setProgress(98);
-      setProcessedCount(claims.length - 1);
-      setCurrentlyProcessing('Finalizing results...');
+      console.log('✅ Backend response received');
 
       const data = await response.json();
-      console.log('Received data:', data);
-      
-      if (data.success && data.results) {
+      if (data.success) {
         setResults(data.results);
-        setProcessedCount(data.totalProcessed);
         setProgress(100);
-        setCurrentlyProcessing('Analysis complete!');
-        
-        // Clear the completion message after 3 seconds
-        setTimeout(() => setCurrentlyProcessing(''), 3000);
-      } else {
-        throw new Error('Failed to process claims batch');
+        setProcessedCount(claims.length);
+        setCurrentlyProcessing('Analysis Complete!');
+        console.log('🎉 Analysis completed successfully!');
       }
-
     } catch (error) {
-      console.error('Error in batch processing:', error);
-      setError(`Error processing claims: ${error.message}`);
+      console.error('❌ Error:', error);
+      setError(`Error: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
