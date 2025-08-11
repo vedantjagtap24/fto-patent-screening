@@ -5,9 +5,6 @@ import Screening from './Screening/Screening';
 import Dashboard from './Dashboard/Dashboard';
 import './MainLayout.css';
 
-// NUCLEAR FIX TIMESTAMP - Railway must rebuild when this changes
-console.log('🚨 NUCLEAR FIX DEPLOYED AT:', new Date().toISOString());
-
 const MainLayout = ({ user, onLogout }) => {
   const [activeModule, setActiveModule] = useState('home');
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -103,10 +100,7 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // ABSOLUTE FINAL FIX - This WILL work
   const startBulkScreening = async () => {
-    console.log('🔥🔥🔥 ABSOLUTE FINAL FIX - TIMESTAMP:', Date.now());
-    
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
       return;
@@ -121,31 +115,26 @@ const MainLayout = ({ user, onLogout }) => {
     setError('');
     setResults([]);
     setStartTime(Date.now());
-    
-    console.log('🚀 STARTING FORCED PROGRESS UPDATES');
 
-    // IMMEDIATE progress update - no delays
+    // Start progress updates immediately
     setProgress(1);
     setProcessedCount(1);
     setCurrentlyProcessing('Processing patent 1 of ' + claims.length + '...');
 
-    // Continue updating every second
+    // Continue updating progress every second
     let count = 1;
     const progressTimer = setInterval(() => {
       count++;
       if (count <= claims.length) {
         const currentProgress = Math.round((count / claims.length) * 95);
-        console.log(`⚡ FORCED UPDATE: ${count}/${claims.length} (${currentProgress}%)`);
         
         setProgress(currentProgress);
         setProcessedCount(count);
         setCurrentlyProcessing(`Processing patent ${count} of ${claims.length}...`);
       }
-    }, 800); // Update every 0.8 seconds
+    }, 800);
 
     try {
-      console.log('📡 Backend request starting...');
-      
       const response = await fetch('/analyze-all-claims', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,7 +142,6 @@ const MainLayout = ({ user, onLogout }) => {
       });
 
       clearInterval(progressTimer);
-      console.log('✅ Backend completed, finishing up...');
 
       const data = await response.json();
       if (data.success) {
@@ -161,11 +149,10 @@ const MainLayout = ({ user, onLogout }) => {
         setProgress(100);
         setProcessedCount(claims.length);
         setCurrentlyProcessing('Analysis Complete!');
-        console.log('🎉 SUCCESS! All done!');
       }
     } catch (error) {
       clearInterval(progressTimer);
-      console.error('❌ ERROR:', error);
+      console.error('Analysis error:', error);
       setError(`Error: ${error.message}`);
     } finally {
       setIsProcessing(false);

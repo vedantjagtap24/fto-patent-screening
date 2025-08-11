@@ -9,9 +9,6 @@ const app = express();
 const port = process.env.PORT || process.env.RAILWAY_PORT || 3001;
 
 console.log('Starting server...');
-console.log('Environment variables:');
-console.log('PORT:', process.env.PORT);
-console.log('RAILWAY_PORT:', process.env.RAILWAY_PORT);
 console.log('Using port:', port);
 console.log('OpenAI API Key present:', !!process.env.OPENAI_API_KEY);
 
@@ -19,72 +16,36 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} from ${req.ip || 'unknown'}`);
-  next();
-});
-
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 
-// FIXED: Proper static file serving for Railway
-console.log('Current working directory:', process.cwd());
-console.log('__dirname:', __dirname);
-
-// FIXED: Use the correct path based on Railway's structure
+// Static file serving
 const buildPath = path.join(__dirname, '../frontend/build');
 
-console.log('Build path:', buildPath);
-console.log('Build path exists:', fs.existsSync(buildPath));
-
 if (fs.existsSync(buildPath)) {
-  console.log('Build directory contents:', fs.readdirSync(buildPath));
-  
-  // Serve static files from React build
   app.use(express.static(buildPath));
-  console.log('✅ Static files middleware added for path:', buildPath);
+  console.log('Static files middleware added');
 } else {
-  console.log('❌ ERROR: Build directory not found at:', buildPath);
-  
   // Try alternative paths
   const altPath1 = path.join(process.cwd(), 'frontend/build');
   const altPath2 = '/app/frontend/build';
   
-  console.log('Trying alternative path 1:', altPath1, 'exists:', fs.existsSync(altPath1));
-  console.log('Trying alternative path 2:', altPath2, 'exists:', fs.existsSync(altPath2));
-  
   if (fs.existsSync(altPath1)) {
     app.use(express.static(altPath1));
-    console.log('✅ Using alternative path 1:', altPath1);
   } else if (fs.existsSync(altPath2)) {
     app.use(express.static(altPath2));
-    console.log('✅ Using alternative path 2:', altPath2);
   }
 }
 
-// Test endpoints
-app.get('/test', (req, res) => {
-  console.log('TEST endpoint hit');
-  res.send('Server is alive!');
-});
-
-app.get('/ping', (req, res) => {
-  console.log('PING endpoint hit');
-  res.send('pong');
-});
-
 // Health check endpoint
 app.get('/health', (req, res) => {
-  console.log('Health check requested from:', req.ip || 'unknown');
   try {
     res.status(200).json({ 
       status: 'Backend is running!',
       timestamp: new Date().toISOString(),
-      buildExists: fs.existsSync(buildPath),
       port: port,
       env: process.env.NODE_ENV || 'development'
     });
-    console.log('Health check response sent successfully');
   } catch (error) {
     console.error('Error in health check:', error);
     res.status(500).json({ error: 'Health check failed', message: error.message });
@@ -95,7 +56,7 @@ app.get('/health', (req, res) => {
 app.post('/analyze-all-claims', async (req, res) => {
   try {
     const { claims, features } = req.body;
-    console.log(`Starting batch analysis of ${claims.length} claims with ${features.length} features`);
+    console.log(`Starting analysis of ${claims.length} claims with ${features.length} features`);
     
     const results = [];
     const batchSize = 10;
@@ -132,7 +93,7 @@ app.post('/analyze-all-claims', async (req, res) => {
     results.sort((a, b) => a.index - b.index);
     const finalResults = results.map(({ index, ...result }) => result);
     
-    console.log(`Batch analysis completed. Processed ${finalResults.length} claims.`);
+    console.log(`Analysis completed. Processed ${finalResults.length} claims.`);
     
     res.json({
       success: true,
@@ -141,10 +102,10 @@ app.post('/analyze-all-claims', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error in batch analysis:', error);
+    console.error('Error in analysis:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to process claims batch',
+      error: 'Failed to process claims',
       results: []
     });
   }
@@ -152,16 +113,9 @@ app.post('/analyze-all-claims', async (req, res) => {
 
 function findPublicationNumber(claim) {
   const possibleColumns = [
-    'Publication Number',
-    'Publication',
-    'Pub Number', 
-    'Patent Number',
-    'Patent Publication',
-    'Publication No',
-    'Pub No',
-    'Patent No',
-    'PublicationNumber',
-    'PatentNumber'
+    'Publication Number', 'Publication', 'Pub Number', 'Patent Number',
+    'Patent Publication', 'Publication No', 'Pub No', 'Patent No',
+    'PublicationNumber', 'PatentNumber'
   ];
   
   for (const col of possibleColumns) {
@@ -272,39 +226,27 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-// FIXED: Serve React app for all non-API routes (MUST be last)
+// Serve React app for all non-API routes
 app.get('*', (req, res) => {
-  console.log('Serving React app for route:', req.path);
-  
   const indexPath = path.join(__dirname, '../frontend/build/index.html');
-  
-  console.log('Index.html path:', indexPath);
-  console.log('Index.html exists:', fs.existsSync(indexPath));
   
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    // Try alternative paths
     const altIndexPath1 = path.join(process.cwd(), 'frontend/build/index.html');
     const altIndexPath2 = '/app/frontend/build/index.html';
     
     if (fs.existsSync(altIndexPath1)) {
-      console.log('Using alternative index path 1:', altIndexPath1);
       res.sendFile(altIndexPath1);
     } else if (fs.existsSync(altIndexPath2)) {
-      console.log('Using alternative index path 2:', altIndexPath2);
       res.sendFile(altIndexPath2);
     } else {
-      console.log('❌ No index.html found at any path');
-      res.status(404).send(`Frontend build not found. Tried: ${indexPath}, ${altIndexPath1}, ${altIndexPath2}`);
+      res.status(404).send('Frontend build not found');
     }
   }
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Server running at http://0.0.0.0:${port}`);
-  console.log('✅ Server started successfully!');
-  console.log('Environment:', process.env.NODE_ENV || 'development');
-  console.log('Railway PORT provided:', !!process.env.PORT);
-  console.log('Actual port used:', port);
+  console.log(`Server running at http://0.0.0.0:${port}`);
+  console.log('Server started successfully!');
 });
