@@ -108,198 +108,67 @@ app.get('/health', (req, res) => {
   }
 });
 
-// UPDATED: Main analysis endpoint with CORRECT percentage calculation AND NO DELAYS
+// SIMPLIFIED: Back to batch processing - NO SSE complexity
 app.post('/analyze-all-claims', async (req, res) => {
   try {
     const { claims, features } = req.body;
-    console.log(`Starting real-time analysis of ${claims.length} claims with ${features.length} features`);
+    console.log(`Starting batch analysis of ${claims.length} claims with ${features.length} features`);
     
-    // Set up Server-Sent Events
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control'
-    });
-
     const results = [];
+    const batchSize = 10;
     const totalClaims = claims.length;
-    let processedCount = 0;
     
-    // Send initial progress
-    res.write(`data: ${JSON.stringify({
-      type: 'progress',
-      processed: 0,
-      total: totalClaims,
-      percentage: 0,
-      message: `Starting analysis of ${totalClaims} patents...`
-    })}\n\n`);
-
-    // Process claims one by one for real-time updates
-    for (let i = 0; i < totalClaims; i++) {
-      const claim = claims[i];
-      const claimText = claim.Claims || claim.claims || claim.Claim || claim.claim || '';
-      const claimNumber = claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (i + 1);
-      const publicationNumber = findPublicationNumber(claim);
+    for (let i = 0; i < totalClaims; i += batchSize) {
+      const batch = claims.slice(i, i + batchSize);
+      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(totalClaims/batchSize)}`);
       
-      try {
-        // Send progress update BEFORE processing (showing what we're about to process)
-        res.write(`data: ${JSON.stringify({
-          type: 'progress',
-          processed: processedCount,
-          total: totalClaims,
-          percentage: Math.round((processedCount / totalClaims) * 100),
-          message: `Analyzing patent ${claimNumber}...`,
-          currentlyProcessing: `Patent ${claimNumber}`
-        })}\n\n`);
-
-        // Analyze the claim (NO DELAY - FULL SPEED!)
-        const analysis = await analyzeSingleClaim(claimText, claimNumber, features, claims);
-        const result = { ...analysis, publicationNumber };
-        results.push(result);
+      const batchPromises = batch.map(async (claim, batchIndex) => {
+        const globalIndex = i + batchIndex;
         
-        // INCREMENT the processed count AFTER successful processing
-        processedCount++;
+        // IMPROVED: Better claim text extraction
+        const claimText = claim.Claims || claim.claims || claim.Claim || claim.claim || '';
         
-        // Send updated progress AFTER processing
-        const newPercentage = Math.round((processedCount / totalClaims) * 100);
-        res.write(`data: ${JSON.stringify({
-          type: 'progress',
-          processed: processedCount,
-          total: totalClaims,
-          percentage: newPercentage,
-          message: `Completed ${processedCount} of ${totalClaims} patents`,
-          currentlyProcessing: processedCount < totalClaims ? `Moving to next patent...` : `Finalizing results...`
-        })}\n\n`);
+        // IMPROVED: Better claim number extraction
+        const claimNumber = claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (globalIndex + 1);
         
-        // NO DELAY! Process at full speed!
+        // IMPROVED: Better publication number extraction with flexible column names
+        const publicationNumber = findPublicationNumber(claim);
         
-      } catch (error) {
-        console.error(`Error processing claim ${claimNumber}:`, error);
-        const errorResult = createErrorResult(claimNumber, features, publicationNumber, i);
-        results.push(errorResult);
-        
-        // INCREMENT even for errors
-        processedCount++;
-        
-        // Send progress even for errors
-        const newPercentage = Math.round((processedCount / totalClaims) * 100);
-        res.write(`data: ${JSON.stringify({
-          type: 'progress',
-          processed: processedCount,
-          total: totalClaims,
-          percentage: newPercentage,
-          message: `Completed ${processedCount} of ${totalClaims} patents (some with errors)`,
-          currentlyProcessing: `Error processing patent ${claimNumber}, continuing...`
-        })}\n\n`);
+        try {
+          const analysis = await analyzeSingleClaim(claimText, claimNumber, features, claims);
+          return { ...analysis, publicationNumber, index: globalIndex };
+        } catch (error) {
+          console.error(`Error processing claim ${claimNumber}:`, error);
+          return createErrorResult(claimNumber, features, publicationNumber, globalIndex);
+        }
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+      
+      if (i + batchSize < totalClaims) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
-    // Send completion with results (should be exactly 100%)
-    res.write(`data: ${JSON.stringify({
-      type: 'complete',
+    results.sort((a, b) => a.index - b.index);
+    const finalResults = results.map(({ index, ...result }) => result);
+    
+    console.log(`Batch analysis completed. Processed ${finalResults.length} claims.`);
+    
+    res.json({
       success: true,
-      totalProcessed: results.length,
-      results: results,
-      percentage: 100,
-      message: `Analysis complete! Processed ${results.length} patents.`
-    })}\n\n`);
-    
-    res.end();
-    console.log(`Real-time analysis completed. Processed ${results.length} claims.`);
-    
-  } catch (error) {
-    console.error('Error in real-time analysis:', error);
-    res.write(`data: ${JSON.stringify({
-      type: 'error',
-      message: error.message,
-      details: 'Analysis failed during processing'
-    })}\n\n`);
-    res.end();
-  }
-});
-
-// Keep the streaming endpoint as alternative
-app.get('/analyze-stream', async (req, res) => {
-  const { claims: claimsStr, features: featuresStr } = req.query;
-  
-  try {
-    const claims = JSON.parse(decodeURIComponent(claimsStr));
-    const features = JSON.parse(decodeURIComponent(featuresStr));
-    
-    console.log(`Starting streaming analysis of ${claims.length} claims with ${features.length} features`);
-    
-    // Set up Server-Sent Events
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control'
+      totalProcessed: finalResults.length,
+      results: finalResults
     });
 
-    const totalClaims = claims.length;
-    let processedCount = 0;
-
-    // Process claims one by one for real-time updates
-    for (let i = 0; i < totalClaims; i++) {
-      const claim = claims[i];
-      const claimText = claim.Claims || claim.claims || claim.Claim || claim.claim || '';
-      const claimNumber = claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (i + 1);
-      const publicationNumber = findPublicationNumber(claim);
-      
-      try {
-        // Send progress update
-        res.write(`data: ${JSON.stringify({
-          type: 'progress',
-          processed: processedCount,
-          total: totalClaims,
-          percentage: Math.round((processedCount / totalClaims) * 100),
-          currentClaim: claimNumber
-        })}\n\n`);
-
-        // Analyze the claim
-        const analysis = await analyzeSingleClaim(claimText, claimNumber, features, claims);
-        const result = { ...analysis, publicationNumber };
-        
-        // Send result
-        res.write(`data: ${JSON.stringify({
-          type: 'result',
-          result: result
-        })}\n\n`);
-        
-        processedCount++;
-        
-      } catch (error) {
-        console.error(`Error processing claim ${claimNumber}:`, error);
-        const errorResult = createErrorResult(claimNumber, features, publicationNumber, i);
-        
-        res.write(`data: ${JSON.stringify({
-          type: 'result',
-          result: errorResult
-        })}\n\n`);
-        
-        processedCount++;
-      }
-    }
-    
-    // Send completion signal
-    res.write(`data: ${JSON.stringify({
-      type: 'complete',
-      totalProcessed: processedCount
-    })}\n\n`);
-    
-    res.end();
-    console.log(`Streaming analysis completed. Processed ${processedCount} claims.`);
-    
   } catch (error) {
-    console.error('Error in streaming analysis:', error);
-    res.write(`data: ${JSON.stringify({
-      type: 'error',
-      message: error.message
-    })}\n\n`);
-    res.end();
+    console.error('Error in batch analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process claims batch',
+      results: []
+    });
   }
 });
 

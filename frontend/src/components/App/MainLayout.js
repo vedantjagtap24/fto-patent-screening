@@ -105,7 +105,7 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // UPDATED: Real-time analysis with CORRECT progress calculation AND NO DELAYS
+  // FIXED: Simple batch processing with realistic progress simulation
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
@@ -131,13 +131,29 @@ const MainLayout = ({ user, onLogout }) => {
     setCurrentlyProcessing(`Preparing to analyze ${claims.length} patents...`);
 
     try {
-      console.log('Starting real-time analysis with Server-Sent Events...');
+      console.log('Sending request to /analyze-all-claims...');
       
-      // Start the analysis by sending POST request
+      // Start realistic progress simulation
+      let simulatedProgress = 0;
+      let simulatedCount = 0;
+      const progressInterval = setInterval(() => {
+        if (simulatedProgress < 95) {
+          // Simulate realistic progress increments
+          const increment = Math.random() * 3 + 1; // 1-4% increments
+          simulatedProgress = Math.min(simulatedProgress + increment, 95);
+          simulatedCount = Math.round((simulatedProgress / 100) * claims.length);
+          
+          setProgress(Math.round(simulatedProgress));
+          setProcessedCount(simulatedCount);
+          setCurrentlyProcessing(`Analyzing patents... ${Math.round(simulatedProgress)}%`);
+        }
+      }, 2000); // Update every 2 seconds
+
       const response = await fetch('/analyze-all-claims', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           claims: claims,
@@ -145,94 +161,42 @@ const MainLayout = ({ user, onLogout }) => {
         })
       });
 
+      // Clear the progress simulation
+      clearInterval(progressInterval);
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
-        throw new Error(`Failed to start analysis: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
+        throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
       }
 
-      // Set up EventSource to receive real-time updates
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      // Show 98% while parsing response
+      setProgress(98);
+      setCurrentlyProcessing('Finalizing results...');
 
-      const processStream = async () => {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            
-            if (done) {
-              console.log('Stream completed');
-              break;
-            }
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6)); // Remove 'data: ' prefix
-                  console.log('SSE Event received:', data.type, `${data.processed}/${data.total} (${data.percentage}%)`);
-                  
-                  switch (data.type) {
-                    case 'progress':
-                      // Use the percentage calculated by the server
-                      setProgress(data.percentage || 0);
-                      setProcessedCount(data.processed || 0);
-                      setCurrentlyProcessing(data.currentlyProcessing || data.message || '');
-                      
-                      // Log the actual calculation for debugging
-                      if (data.processed !== undefined && data.total) {
-                        const calculatedPercentage = Math.round((data.processed / data.total) * 100);
-                        console.log(`Progress: ${data.processed}/${data.total} = ${calculatedPercentage}%`);
-                      }
-                      break;
-                      
-                    case 'complete':
-                      if (data.success && data.results) {
-                        setResults(data.results);
-                        setProcessedCount(data.totalProcessed);
-                        setProgress(100); // Ensure it shows 100% on completion
-                        setCurrentlyProcessing('Analysis complete!');
-                        
-                        console.log(`Analysis completed: ${data.totalProcessed} patents processed`);
-                        
-                        // Clear processing message after a delay
-                        setTimeout(() => setCurrentlyProcessing(''), 3000);
-                        setIsProcessing(false);
-                        return; // Exit the loop
-                      } else {
-                        throw new Error('Analysis completed but no results received');
-                      }
-                      
-                    case 'error':
-                      throw new Error(data.message || 'Analysis failed');
-                      
-                    default:
-                      console.log('Unknown event type:', data.type);
-                  }
-                } catch (parseError) {
-                  console.error('Error parsing SSE data:', parseError);
-                  // Don't throw here, continue processing other events
-                }
-              }
-            }
-          }
-        } catch (streamError) {
-          console.error('Stream processing error:', streamError);
-          throw streamError;
-        } finally {
-          reader.releaseLock();
-        }
-      };
-
-      await processStream();
+      const data = await response.json();
+      console.log('Received data:', data);
+      
+      if (data.success && data.results) {
+        setResults(data.results);
+        setProcessedCount(data.totalProcessed);
+        setProgress(100);
+        setCurrentlyProcessing('Analysis complete!');
+        
+        // Clear the completion message after 3 seconds
+        setTimeout(() => setCurrentlyProcessing(''), 3000);
+      } else {
+        throw new Error('Failed to process claims batch');
+      }
 
     } catch (error) {
-      console.error('Error in real-time analysis:', error);
+      console.error('Error in batch processing:', error);
       setError(`Error processing claims: ${error.message}`);
+    } finally {
       setIsProcessing(false);
-      setCurrentlyProcessing('');
     }
   };
 
