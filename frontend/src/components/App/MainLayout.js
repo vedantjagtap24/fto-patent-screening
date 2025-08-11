@@ -25,6 +25,9 @@ const MainLayout = ({ user, onLogout }) => {
   const [startTime, setStartTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [features, setFeatures] = useState([]);
+  
+  // NEW: SSE connection ref
+  const eventSourceRef = useRef(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -60,6 +63,15 @@ const MainLayout = ({ user, onLogout }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // NEW: Cleanup SSE connection on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
     };
   }, []);
 
@@ -105,7 +117,7 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // FIXED: Simple batch processing with WORKING progress simulation
+  // UPDATED: New SSE-based bulk screening with real-time progress
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
@@ -122,100 +134,92 @@ const MainLayout = ({ user, onLogout }) => {
       return;
     }
 
+    // Close any existing SSE connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
     setIsProcessing(true);
     setError('');
     setResults([]);
     setProgress(0);
     setProcessedCount(0);
     setStartTime(Date.now());
-    setCurrentlyProcessing(`Preparing to analyze ${claims.length} patents...`);
-
-    // Start progress simulation immediately
-    let simulatedProgress = 0;
-    let simulatedCount = 0;
-    
-    const progressInterval = setInterval(() => {
-      if (simulatedProgress < 90) {
-        // Increment progress more aggressively
-        const increment = Math.random() * 8 + 2; // 2-10% increments
-        simulatedProgress = Math.min(simulatedProgress + increment, 90);
-        simulatedCount = Math.round((simulatedProgress / 100) * claims.length);
-        
-        setProgress(Math.round(simulatedProgress));
-        setProcessedCount(simulatedCount);
-        
-        // Show different messages based on progress
-        if (simulatedProgress < 30) {
-          setCurrentlyProcessing(`Starting analysis... ${Math.round(simulatedProgress)}%`);
-        } else if (simulatedProgress < 60) {
-          setCurrentlyProcessing(`Analyzing patents... ${Math.round(simulatedProgress)}%`);
-        } else {
-          setCurrentlyProcessing(`Almost done... ${Math.round(simulatedProgress)}%`);
-        }
-      }
-    }, 1500); // Update every 1.5 seconds
+    setCurrentlyProcessing(`Initializing analysis of ${claims.length} patents...`);
 
     try {
-      console.log('Sending request to /analyze-all-claims...');
-
-      const response = await fetch('/analyze-all-claims', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          claims: claims,
-          features: features
-        })
+      // Create SSE connection with POST data as query params
+      const queryParams = new URLSearchParams({
+        claims: JSON.stringify(claims),
+        features: JSON.stringify(features)
       });
-
-      // Clear the progress simulation
-      clearInterval(progressInterval);
-
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Error response:', errorText);
-        throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
-      }
-
-      // Show 95% while parsing response
-      setProgress(95);
-      setProcessedCount(Math.round(claims.length * 0.95));
-      setCurrentlyProcessing('Finalizing results...');
-
-      const data = await response.json();
-      console.log('Received data:', data);
       
-      if (data.success && data.results) {
-        // Final completion
-        setResults(data.results);
-        setProcessedCount(data.totalProcessed);
-        setProgress(100);
-        setCurrentlyProcessing('Analysis complete!');
-        
-        // Clear the completion message after 3 seconds
-        setTimeout(() => setCurrentlyProcessing(''), 3000);
-      } else {
-        throw new Error('Failed to process claims batch');
-      }
+      console.log('Starting SSE connection for real-time progress...');
+      eventSourceRef.current = new EventSource(`/analyze-stream?${queryParams.toString()}`);
+      
+      eventSourceRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('SSE Update:', data);
+          
+          switch (data.type) {
+            case 'progress':
+              setProgress(data.percentage);
+              setProcessedCount(data.processed);
+              setCurrentlyProcessing(data.message);
+              break;
+              
+            case 'complete':
+              setProgress(100);
+              setProcessedCount(data.total);
+              setResults(data.results);
+              setCurrentlyProcessing('Analysis complete!');
+              eventSourceRef.current.close();
+              setIsProcessing(false);
+              setTimeout(() => setCurrentlyProcessing(''), 3000);
+              console.log(`Analysis completed! Processed ${data.total} patents.`);
+              break;
+              
+            case 'error':
+              setError(data.message);
+              eventSourceRef.current.close();
+              setIsProcessing(false);
+              console.error('SSE Error:', data.message);
+              break;
+              
+            default:
+              console.log('Unknown SSE message type:', data.type);
+          }
+        } catch (parseError) {
+          console.error('Error parsing SSE data:', parseError);
+        }
+      };
+      
+      eventSourceRef.current.onerror = (error) => {
+        console.error('SSE Connection Error:', error);
+        setError('Connection lost during analysis. Please try again.');
+        eventSourceRef.current.close();
+        setIsProcessing(false);
+      };
+
+      eventSourceRef.current.onopen = () => {
+        console.log('SSE connection opened successfully');
+      };
 
     } catch (error) {
-      console.error('Error in batch processing:', error);
-      setError(`Error processing claims: ${error.message}`);
-      
-      // Clear interval on error too
-      clearInterval(progressInterval);
-    } finally {
+      console.error('Error starting SSE analysis:', error);
+      setError(`Error starting analysis: ${error.message}`);
       setIsProcessing(false);
     }
   };
 
   // MOVED FROM SCREENING: Clear all data
   const clearAllData = () => {
+    // Close SSE connection if active
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+    
     setFile(null);
     setClaims([]);
     setResults([]);
@@ -226,6 +230,7 @@ const MainLayout = ({ user, onLogout }) => {
     setCurrentlyProcessing('');
     setError('');
     setFeatures([]);
+    setIsProcessing(false);
   };
 
   const navigationItems = [

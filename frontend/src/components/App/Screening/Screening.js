@@ -581,7 +581,7 @@ const Screening = ({
             </button>
           )}
 
-          {/* UPDATED: Enhanced Progress Section with Real-time Updates & Time Estimates */}
+          {/* UPDATED: Enhanced Progress Section with Real-time SSE Updates */}
           {isProcessing && (
             <div className="progress-section-centered">
               <div className="progress-info-row">
