@@ -105,50 +105,7 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // MOVED FROM SCREENING: Analyze claim with GPT
-  const analyzeClaimWithGPT = async (claim, claimNumber) => {
-    try {
-      const response = await fetch('http://localhost:3001/analyze-claim', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          claim: claim,
-          claimNumber: claimNumber,
-          features: features
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`Error analyzing claim ${claimNumber}:`, error);
-      
-      const errorResponse = {
-        claimNumber,
-        features: features,
-        detailed_analysis: {}
-      };
-
-      features.forEach((feature, index) => {
-        const key = `feature_${index + 1}`;
-        errorResponse[key] = false;
-        errorResponse.detailed_analysis[key] = {
-          feature_name: feature,
-          present: false,
-          confidence: "Low",
-          reasoning: "Analysis failed",
-          relevant_text: "N/A"
-        };
-      });
-
-      return errorResponse;
-    }
-  };
-
-  // UPDATED: Batch process all claims at once
+  // UPDATED: Real-time analysis with Server-Sent Events
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
@@ -174,15 +131,13 @@ const MainLayout = ({ user, onLogout }) => {
     setCurrentlyProcessing(`Preparing to analyze ${claims.length} patents...`);
 
     try {
-      console.log('Sending request to /analyze-all-claims...');
-      console.log('Claims count:', claims.length);
-      console.log('Features:', features);
+      console.log('Starting real-time analysis with Server-Sent Events...');
       
+      // Start the analysis by sending POST request
       const response = await fetch('/analyze-all-claims', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           claims: claims,
@@ -190,34 +145,83 @@ const MainLayout = ({ user, onLogout }) => {
         })
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Error response:', errorText);
-        throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to start analysis: ${response.status} ${response.statusText}`);
       }
 
-      setCurrentlyProcessing('Processing all patents with AI...');
-      setProgress(50); // Show 50% while waiting for response
+      // Set up EventSource to receive real-time updates
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      const data = await response.json();
-      console.log('Received data:', data);
-      
-      if (data.success && data.results) {
-        setResults(data.results);
-        setProcessedCount(data.totalProcessed);
-        setProgress(100);
-        setCurrentlyProcessing('');
-      } else {
-        throw new Error('Failed to process claims batch');
-      }
+      const processStream = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+              console.log('Stream completed');
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6)); // Remove 'data: ' prefix
+                  console.log('SSE Event received:', data.type, data);
+                  
+                  switch (data.type) {
+                    case 'progress':
+                      setProgress(data.percentage || 0);
+                      setProcessedCount(data.processed || 0);
+                      setCurrentlyProcessing(data.currentlyProcessing || data.message || '');
+                      break;
+                      
+                    case 'complete':
+                      if (data.success && data.results) {
+                        setResults(data.results);
+                        setProcessedCount(data.totalProcessed);
+                        setProgress(100);
+                        setCurrentlyProcessing('Analysis complete!');
+                        
+                        // Clear processing message after a delay
+                        setTimeout(() => setCurrentlyProcessing(''), 3000);
+                        setIsProcessing(false);
+                        return; // Exit the loop
+                      } else {
+                        throw new Error('Analysis completed but no results received');
+                      }
+                      
+                    case 'error':
+                      throw new Error(data.message || 'Analysis failed');
+                      
+                    default:
+                      console.log('Unknown event type:', data.type);
+                  }
+                } catch (parseError) {
+                  console.error('Error parsing SSE data:', parseError);
+                  // Don't throw here, continue processing other events
+                }
+              }
+            }
+          }
+        } catch (streamError) {
+          console.error('Stream processing error:', streamError);
+          throw streamError;
+        } finally {
+          reader.releaseLock();
+        }
+      };
+
+      await processStream();
 
     } catch (error) {
-      console.error('Error in batch processing:', error);
+      console.error('Error in real-time analysis:', error);
       setError(`Error processing claims: ${error.message}`);
-    } finally {
       setIsProcessing(false);
       setCurrentlyProcessing('');
     }

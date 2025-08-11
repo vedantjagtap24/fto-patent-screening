@@ -34,7 +34,7 @@ const Screening = ({
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
   const [newFeature, setNewFeature] = useState('');
   const [showFeatureDropdown, setShowFeatureDropdown] = useState(false);
-  const [showRankDropdown, setShowRankDropdown] = useState(false); // NEW: Modern rank dropdown state
+  const [showRankDropdown, setShowRankDropdown] = useState(false);
 
   const resultsPerPage = 10;
 
@@ -261,7 +261,7 @@ const Screening = ({
         setSelectedFeatureFilter(null);
       }
       setCurrentPage(1);
-      setShowRankDropdown(false); // Close modern dropdown
+      setShowRankDropdown(false);
     };
 
     const clearAllFilters = () => {
@@ -348,7 +348,7 @@ const Screening = ({
             )}
           </div>
 
-          {/* UPDATED: Modern Rank Dropdown */}
+          {/* Modern Rank Dropdown */}
           <div className="filter-dropdown modern-dropdown">
             <button 
               className={`modern-filter-btn ${selectedRankFilter !== null ? 'selected' : ''}`}
@@ -438,7 +438,7 @@ const Screening = ({
           if (analysis) {
             data[`${feature} - Confidence`] = analysis.confidence || 'N/A';
             data[`${feature} - Reasoning`] = analysis.reasoning || 'N/A';
-            data[`${feature} - Relevant Claims`] = analysis.relevant_claims || 'N/A'; // UPDATED: Show claim numbers
+            data[`${feature} - Relevant Claims`] = analysis.relevant_claims || 'N/A';
           }
         });
       }
@@ -581,6 +581,7 @@ const Screening = ({
             </button>
           )}
 
+          {/* UPDATED: Enhanced Progress Section with Real-time Updates */}
           {isProcessing && (
             <div className="progress-section-centered">
               <div className="progress-info-row">
@@ -608,6 +609,23 @@ const Screening = ({
                   style={{ width: `${progress}%` }}
                 />
               </div>
+              
+              {/* Show estimated time remaining */}
+              {processedCount > 0 && processedCount < claims.length && (
+                <div style={{ 
+                  fontSize: '0.75rem', 
+                  color: '#6b7280', 
+                  textAlign: 'center', 
+                  marginTop: '0.5rem' 
+                }}>
+                  Estimated time remaining: {(() => {
+                    const avgTimePerClaim = elapsedTime / processedCount;
+                    const remainingClaims = claims.length - processedCount;
+                    const remainingTime = avgTimePerClaim * remainingClaims;
+                    return formatElapsedTime(remainingTime);
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -791,7 +809,7 @@ const Screening = ({
         </div>
       )}
 
-      {/* UPDATED: Analysis Details Modal with scroll fix */}
+      {/* Analysis Details Modal */}
       {showAnalysisModal && selectedAnalysis && selectedAnalysis.detailed_analysis && (
         <div className="modal-overlay" onClick={closeAnalysisModal}>
           <div 
