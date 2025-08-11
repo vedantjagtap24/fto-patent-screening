@@ -6,14 +6,25 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3001;
+// Force Railway port or fallback
+const port = process.env.PORT || process.env.RAILWAY_PORT || 3001;
 
 console.log('Starting server...');
-console.log('Port:', port);
+console.log('Available environment variables:');
+console.log('PORT:', process.env.PORT);
+console.log('RAILWAY_PORT:', process.env.RAILWAY_PORT);
+console.log('Using port:', port);
 console.log('OpenAI API Key present:', !!process.env.OPENAI_API_KEY);
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
+});
+
+// Add general request logging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} from ${req.ip || 'unknown'}`);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  next();
 });
 
 app.use(cors());
@@ -68,9 +79,21 @@ if (fs.existsSync(buildPath)) {
   console.log('WARNING: Build directory not found!');
 }
 
+// Simple test endpoint
+app.get('/test', (req, res) => {
+  console.log('TEST endpoint hit');
+  res.send('Server is alive!');
+});
+
+// Root endpoint test
+app.get('/ping', (req, res) => {
+  console.log('PING endpoint hit');
+  res.send('pong');
+});
+
 // Health check endpoint (simplified)
 app.get('/health', (req, res) => {
-  console.log('Health check requested from:', req.ip);
+  console.log('Health check requested from:', req.ip || 'unknown');
   console.log('Request headers:', req.headers);
   try {
     res.status(200).json({ 
@@ -169,4 +192,10 @@ app.listen(port, '0.0.0.0', () => {
   console.log('Server started successfully!');
   console.log('Environment:', process.env.NODE_ENV || 'development');
   console.log('Railway PORT provided:', !!process.env.PORT);
+  console.log('Actual port used:', port);
+  
+  // Test immediate health check
+  setTimeout(() => {
+    console.log('Server self-test: attempting internal health check...');
+  }, 2000);
 });
