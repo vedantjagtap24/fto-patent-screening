@@ -100,7 +100,7 @@ const MainLayout = ({ user, onLogout }) => {
     setFeatures(features.filter((_, i) => i !== index));
   };
 
-  // Real-time progress tracking with Server-Sent Events
+  // DEBUG VERSION: Complete debugging solution
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
       setError('Backend server is not running. Please start the backend server first.');
@@ -123,94 +123,129 @@ const MainLayout = ({ user, onLogout }) => {
     setProgress(0);
     setProcessedCount(0);
     setStartTime(Date.now());
-    setCurrentlyProcessing('Initializing analysis...');
+    setCurrentlyProcessing('Starting analysis...');
 
+    // DEBUG: First check if streaming endpoint exists
     try {
-      console.log('Starting real-time analysis with Server-Sent Events...');
-
-      // Use the streaming endpoint for real-time progress
-      const response = await fetch('/analyze-all-claims-stream', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream'
-        },
-        body: JSON.stringify({
-          claims: claims,
-          features: features
-        })
+      console.log('=== DEBUGGING ANALYSIS ===');
+      console.log('Claims count:', claims.length);
+      console.log('Features count:', features.length);
+      
+      // Test if streaming endpoint is available
+      const testResponse = await fetch('/analyze-all-claims-stream', {
+        method: 'OPTIONS'
       });
-
-      if (!response.ok) {
-        throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
+      console.log('Streaming endpoint test:', testResponse.status);
+      
+      if (testResponse.status === 404) {
+        console.log('STREAMING ENDPOINT NOT FOUND - using fallback');
+        // Use the old endpoint but with manual progress simulation
+        setCurrentlyProcessing('Using fallback method...');
         
-        if (done) {
-          console.log('Stream completed');
-          break;
+        const response = await fetch('/analyze-all-claims', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            claims: claims,
+            features: features
+          })
+        });
+
+        console.log('Fallback response status:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
         }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // Keep incomplete line in buffer
+        // Show some progress while waiting
+        setProgress(50);
+        setProcessedCount(Math.floor(claims.length / 2));
+        setCurrentlyProcessing(`Processing ${claims.length} patents...`);
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              console.log('Received progress update:', data);
-              
-              switch (data.type) {
-                case 'progress':
-                case 'processing_claim':
-                case 'claim_completed':
-                case 'batch_completed':
-                  setProgress(data.progress);
-                  setProcessedCount(data.processedCount);
-                  setCurrentlyProcessing(data.message);
-                  if (data.currentClaim) {
-                    setCurrentlyProcessing(`Analyzing patent ${data.currentClaim}...`);
-                  }
-                  break;
-                  
-                case 'claim_error':
-                  setProgress(data.progress);
-                  setProcessedCount(data.processedCount);
-                  setCurrentlyProcessing(`Error: ${data.message}`);
-                  console.warn('Claim processing error:', data.error);
-                  break;
-                  
-                case 'completed':
-                  setProgress(100);
-                  setProcessedCount(data.totalCount);
-                  setCurrentlyProcessing('Analysis complete!');
-                  setResults(data.results);
-                  
-                  // Clear the completion message after 3 seconds
+        const data = await response.json();
+        console.log('Received data:', data);
+        
+        if (data.success && data.results) {
+          setResults(data.results);
+          setProcessedCount(data.totalProcessed);
+          setProgress(100);
+          setCurrentlyProcessing('Analysis complete!');
+          
+          setTimeout(() => setCurrentlyProcessing(''), 3000);
+        } else {
+          throw new Error('Failed to process claims batch');
+        }
+        
+      } else {
+        console.log('USING STREAMING ENDPOINT');
+        // Try streaming
+        const response = await fetch('/analyze-all-claims-stream', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream'
+          },
+          body: JSON.stringify({
+            claims: claims,
+            features: features
+          })
+        });
+
+        console.log('Streaming response status:', response.status);
+        console.log('Streaming response headers:', response.headers);
+
+        if (!response.ok) {
+          throw new Error(`Streaming Error: ${response.status} ${response.statusText}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let eventCount = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('Stream completed, total events received:', eventCount);
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              eventCount++;
+              try {
+                const data = JSON.parse(line.slice(6));
+                console.log(`Event ${eventCount}:`, data);
+                
+                // Update UI based on event type
+                setProgress(data.progress || 0);
+                setProcessedCount(data.processedCount || 0);
+                setCurrentlyProcessing(data.message || 'Processing...');
+                
+                if (data.type === 'completed') {
+                  setResults(data.results || []);
                   setTimeout(() => setCurrentlyProcessing(''), 3000);
-                  break;
-                  
-                case 'error':
-                  throw new Error(data.message || 'Analysis failed');
+                }
+                
+              } catch (parseError) {
+                console.error('Error parsing event:', parseError, 'Line:', line);
               }
-              
-            } catch (parseError) {
-              console.error('Error parsing SSE data:', parseError, 'Line:', line);
             }
           }
         }
       }
 
     } catch (error) {
-      console.error('Error in real-time analysis:', error);
-      setError(`Error processing claims: ${error.message}`);
+      console.error('=== ERROR IN ANALYSIS ===', error);
+      setError(`Error: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
