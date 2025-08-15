@@ -4,55 +4,133 @@ import { Lightbulb, Target, Zap, Layers, Search, List, X } from 'lucide-react';
 const Home = ({ onNavigate }) => {
   const [activeModal, setActiveModal] = useState(null);
 
-  // Test function to make sure clicks work
-  const testClick = () => {
-    alert('Click is working!');
+  // Modal content data
+  const modalData = {
+    objective: {
+      title: "Objective",
+      icon: <Lightbulb size={32} className="icon-blue" />,
+      content: `
+        <h3>Freedom to Operate Analysis</h3>
+        <p>Our comprehensive FTO analysis provides a systematic approach to patent landscape evaluation. This process involves:</p>
+        <ul>
+          <li><strong>Large-scale Patent Processing:</strong> Automated analysis of thousands of patent documents simultaneously</li>
+          <li><strong>AI-Driven Classification:</strong> Machine learning algorithms categorize and prioritize patent claims based on relevance</li>
+          <li><strong>Risk Assessment:</strong> Quantitative scoring of potential infringement risks across different technology areas</li>
+          <li><strong>Competitive Intelligence:</strong> Identification of key players and their patent portfolios in your technology space</li>
+        </ul>
+        <p>The system is designed to handle complex patent landscapes efficiently, reducing the time from months to days for comprehensive FTO studies.</p>
+      `
+    },
+    searchObjective: {
+      title: "Search Objective",
+      icon: <Target size={32} className="icon-blue" />,
+      content: `
+        <h3>Comprehensive Patent Conflict Detection</h3>
+        <p>Our search methodology focuses on identifying patents that could pose infringement risks:</p>
+        <ul>
+          <li><strong>Technology Mapping:</strong> Systematic mapping of your product features against existing patent claims</li>
+          <li><strong>Jurisdictional Coverage:</strong> Analysis across multiple patent offices including USPTO, EPO, JPO, and others</li>
+          <li><strong>Prior Art Discovery:</strong> Identification of relevant prior art that could affect patent validity</li>
+          <li><strong>White Space Analysis:</strong> Discovery of areas with limited patent coverage for future innovation</li>
+        </ul>
+        <p>The system prioritizes patents based on claim strength, enforceability, and commercial relevance to your specific use case.</p>
+      `
+    },
+    features: {
+      title: "Features",
+      icon: <Zap size={32} className="icon-blue" />,
+      content: `
+        <h3>Advanced Feature Recognition System</h3>
+        <p>Our platform employs sophisticated feature extraction and comparison algorithms:</p>
+        <ul>
+          <li><strong>Natural Language Processing:</strong> Advanced NLP techniques to understand patent claim language and technical descriptions</li>
+          <li><strong>Feature Extraction:</strong> Automated identification of key technical features from your product specifications</li>
+          <li><strong>Semantic Matching:</strong> AI-powered semantic analysis to find conceptually similar patents beyond keyword matching</li>
+          <li><strong>Visual Patent Analysis:</strong> Processing of patent diagrams and figures for comprehensive comparison</li>
+          <li><strong>Technology Taxonomy:</strong> Classification using international patent classification systems (IPC, CPC)</li>
+        </ul>
+        <p>The feature recognition system continuously learns and improves its accuracy through machine learning feedback loops.</p>
+      `
+    },
+    methodology: {
+      title: "Methodology",
+      icon: <Layers size={32} className="icon-blue" />,
+      content: `
+        <h3>AI-Based Patent Evaluation Framework</h3>
+        <p>Our methodology combines multiple AI techniques for comprehensive patent analysis:</p>
+        <ul>
+          <li><strong>Multi-Stage Filtering:</strong> Progressive filtering from broad searches to highly relevant results</li>
+          <li><strong>Similarity Scoring:</strong> Advanced algorithms calculate similarity scores based on technical features, claims, and descriptions</li>
+          <li><strong>Risk Stratification:</strong> Patents are categorized into high, medium, and low risk categories</li>
+          <li><strong>Claim Chart Generation:</strong> Automated generation of preliminary claim charts for high-risk patents</li>
+          <li><strong>Validity Assessment:</strong> AI-assisted evaluation of patent strength and potential invalidity arguments</li>
+        </ul>
+        <p>The methodology is continuously validated against expert legal opinions to ensure accuracy and reliability.</p>
+      `
+    },
+    searchStrategy: {
+      title: "Search Strategy",
+      icon: <Search size={32} className="icon-blue" />,
+      content: `
+        <h3>Multi-Database Patent Intelligence</h3>
+        <p>Our search strategy leverages multiple data sources and search techniques:</p>
+        <ul>
+          <li><strong>Database Coverage:</strong> Integration with major patent databases including Google Patents, USPTO, Espacenet, WIPO, and commercial databases</li>
+          <li><strong>Search Optimization:</strong> Combination of keyword searches, classification code searches, and inventor/assignee searches</li>
+          <li><strong>Boolean Logic:</strong> Advanced boolean search strategies with proximity operators and field-specific searches</li>
+          <li><strong>Citation Analysis:</strong> Forward and backward citation analysis to discover related patents</li>
+          <li><strong>Real-time Updates:</strong> Continuous monitoring for newly published patents in relevant technology areas</li>
+        </ul>
+        <p>Search strategies are customized based on technology domain and geographic markets of interest.</p>
+      `
+    },
+    assumptions: {
+      title: "Assumptions",
+      icon: <List size={32} className="icon-blue" />,
+      content: `
+        <h3>Legal and Technical Limitations</h3>
+        <p>Important considerations and limitations of automated patent analysis:</p>
+        <ul>
+          <li><strong>Legal Expertise Required:</strong> Final infringement determinations must be made by qualified patent attorneys</li>
+          <li><strong>Claim Construction:</strong> Patent claim interpretation may vary and requires legal analysis</li>
+          <li><strong>Jurisdictional Variations:</strong> Patent laws and enforcement practices differ across jurisdictions</li>
+          <li><strong>Data Currency:</strong> Patent databases may have delays in updating; recent applications might not be captured</li>
+          <li><strong>False Positives:</strong> Automated systems may flag patents that upon legal review pose minimal risk</li>
+        </ul>
+        <p><strong>Disclaimer:</strong> This tool provides preliminary analysis for informational purposes. All results should be reviewed by qualified patent counsel before making business decisions.</p>
+      `
+    }
   };
 
   const openModal = (cardType) => {
-    console.log('Opening modal for:', cardType); // Debug log
     setActiveModal(cardType);
   };
 
   const closeModal = () => {
-    console.log('Closing modal'); // Debug log
     setActiveModal(null);
   };
 
-  // Simple modal data for testing
-  const getModalContent = (type) => {
-    switch(type) {
-      case 'objective':
-        return {
-          title: "Objective Details",
-          content: "This is detailed information about the Objective card. The modal is working!"
-        };
-      case 'searchObjective':
-        return {
-          title: "Search Objective Details", 
-          content: "This is detailed information about the Search Objective card."
-        };
-      default:
-        return {
-          title: "Modal Test",
-          content: "Modal is working correctly!"
-        };
+  // Handle escape key to close modal
+  React.useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    };
+
+    if (activeModal) {
+      document.addEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'hidden'; // Prevent background scrolling
     }
-  };
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [activeModal]);
 
   return (
     <>
-      {/* Debug button to test state */}
-      <div style={{padding: '1rem', background: '#f0f0f0', margin: '1rem'}}>
-        <p>Debug: Active modal is: {activeModal || 'none'}</p>
-        <button onClick={testClick} style={{marginRight: '1rem', padding: '0.5rem'}}>
-          Test Click (Should show alert)
-        </button>
-        <button onClick={() => openModal('test')} style={{padding: '0.5rem'}}>
-          Test Modal Open
-        </button>
-      </div>
-
       <div className="module-content">
         <div className="section">
           <div className="home-header">
@@ -61,27 +139,21 @@ const Home = ({ onNavigate }) => {
           </div>
 
           <div className="overview-grid">
-            {/* Test with very simple onClick first */}
-            <div 
-              className="overview-card clickable-card" 
-              onClick={() => {
-                console.log('Objective card clicked!');
-                openModal('objective');
-              }}
-              style={{border: '2px solid red'}} // Make it obvious which card this is
-            >
+            {/* Objective Card */}
+            <div className="overview-card clickable-card" onClick={() => openModal('objective')}>
               <div className="card-icon">
                 <Lightbulb size={32} className="icon-blue" />
               </div>
-              <h3 className="card-title">Objective (TEST)</h3>
+              <h3 className="card-title">Objective</h3>
               <p className="card-description">
-                Click me to test the modal! This card has a red border for testing.
+                Conduct Freedom to Operate (FTO) analysis on a large volume
+                of patent claims through an automated, AI-driven system.
               </p>
               <div className="click-indicator">Click for more details</div>
             </div>
 
-            {/* Keep other cards simple for now */}
-            <div className="overview-card">
+            {/* Search Objective Card */}
+            <div className="overview-card clickable-card" onClick={() => openModal('searchObjective')}>
               <div className="card-icon">
                 <Target size={32} className="icon-blue" />
               </div>
@@ -89,9 +161,11 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Detect potentially conflicting patents to mitigate infringement risks across critical technological areas.
               </p>
+              <div className="click-indicator">Click for more details</div>
             </div>
 
-            <div className="overview-card">
+            {/* Features Card */}
+            <div className="overview-card clickable-card" onClick={() => openModal('features')}>
               <div className="card-icon">
                 <Zap size={32} className="icon-blue" />
               </div>
@@ -99,9 +173,11 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Identifies and evaluates relevant features of the developed product against existing patents for FTO analysis.
               </p>
+              <div className="click-indicator">Click for more details</div>
             </div>
 
-            <div className="overview-card">
+            {/* Methodology Card */}
+            <div className="overview-card clickable-card" onClick={() => openModal('methodology')}>
               <div className="card-icon">
                 <Layers size={32} className="icon-blue" />
               </div>
@@ -109,9 +185,11 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Utilizes AI-based reasoning to evaluate and rank patents based on feature recognition and similarity metrics.
               </p>
+              <div className="click-indicator">Click for more details</div>
             </div>
 
-            <div className="overview-card">
+            {/* Search Strategy Card */}
+            <div className="overview-card clickable-card" onClick={() => openModal('searchStrategy')}>
               <div className="card-icon">
                 <Search size={32} className="icon-blue" />
               </div>
@@ -119,9 +197,11 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Patent data is sourced from leading databases using a combination of keywords, classification codes, and jurisdictional filters.
               </p>
+              <div className="click-indicator">Click for more details</div>
             </div>
 
-            <div className="overview-card">
+            {/* Assumptions Card */}
+            <div className="overview-card clickable-card" onClick={() => openModal('assumptions')}>
               <div className="card-icon">
                 <List size={32} className="icon-blue" />
               </div>
@@ -129,6 +209,7 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 While automated tools assist the process, legal conclusions and infringement assessments require qualified patent attorneys or legal experts for validation.
               </p>
+              <div className="click-indicator">Click for more details</div>
             </div>
           </div>
 
@@ -161,51 +242,22 @@ const Home = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Simple Modal for Testing */}
+      {/* Modal Overlay */}
       {activeModal && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000
-          }}
-          onClick={closeModal}
-        >
-          <div 
-            style={{
-              background: 'white',
-              borderRadius: '1rem',
-              padding: '2rem',
-              maxWidth: '600px',
-              margin: '1rem'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-              <h2>{getModalContent(activeModal).title}</h2>
-              <button 
-                onClick={closeModal}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.5rem',
-                  cursor: 'pointer'
-                }}
-              >
-                ×
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-section">
+                {modalData[activeModal].icon}
+                <h2 className="modal-title">{modalData[activeModal].title}</h2>
+              </div>
+              <button className="modal-close" onClick={closeModal}>
+                <X size={24} />
               </button>
             </div>
-            <p>{getModalContent(activeModal).content}</p>
-            <p style={{fontSize: '0.9rem', color: '#666', marginTop: '1rem'}}>
-              Debug: Modal state is "{activeModal}"
-            </p>
+            <div className="modal-body">
+              <div dangerouslySetInnerHTML={{ __html: modalData[activeModal].content }} />
+            </div>
           </div>
         </div>
       )}
