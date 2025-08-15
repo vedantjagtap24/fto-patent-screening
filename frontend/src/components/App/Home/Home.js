@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lightbulb, Target, Zap, Layers, Search, List, X } from 'lucide-react';
+import './Home.css'; 
 
 const Home = ({ onNavigate }) => {
   const [activeModal, setActiveModal] = useState(null);
