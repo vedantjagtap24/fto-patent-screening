@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lightbulb, Target, Zap, Layers, Search, List, X } from 'lucide-react';
-import './Home.css'; 
+import './Home.css';
 
 const Home = ({ onNavigate }) => {
   const [activeModal, setActiveModal] = useState(null);
@@ -150,7 +150,6 @@ const Home = ({ onNavigate }) => {
                 Conduct Freedom to Operate (FTO) analysis on a large volume
                 of patent claims through an automated, AI-driven system.
               </p>
-              <div className="click-indicator">Click for more details</div>
             </div>
 
             {/* Search Objective Card */}
@@ -162,7 +161,6 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Detect potentially conflicting patents to mitigate infringement risks across critical technological areas.
               </p>
-              <div className="click-indicator">Click for more details</div>
             </div>
 
             {/* Features Card */}
@@ -174,7 +172,6 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Identifies and evaluates relevant features of the developed product against existing patents for FTO analysis.
               </p>
-              <div className="click-indicator">Click for more details</div>
             </div>
 
             {/* Methodology Card */}
@@ -186,7 +183,6 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Utilizes AI-based reasoning to evaluate and rank patents based on feature recognition and similarity metrics.
               </p>
-              <div className="click-indicator">Click for more details</div>
             </div>
 
             {/* Search Strategy Card */}
@@ -198,7 +194,6 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 Patent data is sourced from leading databases using a combination of keywords, classification codes, and jurisdictional filters.
               </p>
-              <div className="click-indicator">Click for more details</div>
             </div>
 
             {/* Assumptions Card */}
@@ -210,7 +205,6 @@ const Home = ({ onNavigate }) => {
               <p className="card-description">
                 While automated tools assist the process, legal conclusions and infringement assessments require qualified patent attorneys or legal experts for validation.
               </p>
-              <div className="click-indicator">Click for more details</div>
             </div>
           </div>
 
