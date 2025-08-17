@@ -809,13 +809,12 @@ const Screening = ({
         </div>
       )}
 
-      {/* Analysis Details Modal */}
+      {/* FIXED: Analysis Details Modal */}
       {showAnalysisModal && selectedAnalysis && selectedAnalysis.detailed_analysis && (
         <div className="modal-overlay" onClick={closeAnalysisModal}>
           <div 
             className="modal" 
             onClick={(e) => e.stopPropagation()}
-            onScroll={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h2 className="modal-title">
@@ -825,7 +824,9 @@ const Screening = ({
                 ×
               </button>
             </div>
+            
             <div className="modal-content">
+              {/* Claim Info Section */}
               <div className="claim-info">
                 <div className="claim-meta">
                   <div className="meta-item">
@@ -845,24 +846,72 @@ const Screening = ({
                 </div>
               </div>
 
+              {/* Debug Info - Remove this after testing */}
+              <div className="debug-info">
+                <div className="debug-header">
+                  <strong>Debug Information</strong>
+                  <span className="debug-note">(Remove this section after fixing)</span>
+                </div>
+                <div className="debug-content">
+                  <div><strong>Total Features:</strong> {features.length}</div>
+                  <div><strong>Analysis Keys:</strong> {Object.keys(selectedAnalysis.detailed_analysis).join(', ')}</div>
+                  <div><strong>Expected Keys:</strong> {features.map((f, i) => `feature_${i + 1}`).join(', ')}</div>
+                  <div><strong>Available Features:</strong></div>
+                  <ul>
+                    {features.map((f, i) => (
+                      <li key={i}>
+                        feature_{i + 1}: {f} - {selectedAnalysis.detailed_analysis[`feature_${i + 1}`] ? '✓ Present' : '✗ Missing'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Analysis Grid - FIXED */}
               <div className="analysis-grid">
-                {Object.entries(selectedAnalysis.detailed_analysis).filter(([key]) => {
-                  if (selectedFeatureFilter) {
-                    return key === selectedFeatureFilter;
+                {features.map((feature, index) => {
+                  const featureKey = `feature_${index + 1}`;
+                  const featureAnalysis = selectedAnalysis.detailed_analysis[featureKey];
+                  
+                  // Skip if filtering by specific feature and this isn't it
+                  if (selectedFeatureFilter && selectedFeatureFilter !== featureKey) {
+                    return null;
                   }
-                  return true;
-                }).map(([key, featureAnalysis]) => {
-                  if (!featureAnalysis) return null;
+
+                  // If no analysis data, create a fallback
+                  if (!featureAnalysis) {
+                    console.warn(`No analysis data for ${featureKey} (${feature})`);
+                    return (
+                      <div key={featureKey} className="feature-analysis absent">
+                        <div className="feature-header">
+                          <div className="feature-name">
+                            <span>✗</span>
+                            {feature}
+                          </div>
+                          <div className="confidence-score confidence-low">
+                            No Data
+                          </div>
+                        </div>
+                        <div className="feature-details">
+                          <h4>Analysis Reasoning:</h4>
+                          <p>No analysis data available for this feature. This might indicate an issue with the AI analysis or data processing.</p>
+                          <div className="error-note">
+                            <strong>Note:</strong> Expected key "{featureKey}" not found in analysis results.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   const confidenceClass = featureAnalysis.confidence?.toLowerCase() === 'high' ? 'confidence-high' : 
                                         featureAnalysis.confidence?.toLowerCase() === 'medium' ? 'confidence-medium' : 'confidence-low';
 
                   return (
-                    <div key={key} className={`feature-analysis ${featureAnalysis.present ? 'present' : 'absent'}`}>
+                    <div key={featureKey} className={`feature-analysis ${featureAnalysis.present ? 'present' : 'absent'}`}>
                       <div className="feature-header">
                         <div className="feature-name">
                           <span>{featureAnalysis.present ? '✓' : '✗'}</span>
-                          {featureAnalysis.feature_name}
+                          {featureAnalysis.feature_name || feature}
                         </div>
                         <div className={`confidence-score ${confidenceClass}`}>
                           {featureAnalysis.confidence || 'Unknown'} Confidence
