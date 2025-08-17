@@ -846,27 +846,6 @@ const Screening = ({
                 </div>
               </div>
 
-              {/* Debug Info - Remove this after testing */}
-              <div className="debug-info">
-                <div className="debug-header">
-                  <strong>Debug Information</strong>
-                  <span className="debug-note">(Remove this section after fixing)</span>
-                </div>
-                <div className="debug-content">
-                  <div><strong>Total Features:</strong> {features.length}</div>
-                  <div><strong>Analysis Keys:</strong> {Object.keys(selectedAnalysis.detailed_analysis).join(', ')}</div>
-                  <div><strong>Expected Keys:</strong> {features.map((f, i) => `feature_${i + 1}`).join(', ')}</div>
-                  <div><strong>Available Features:</strong></div>
-                  <ul>
-                    {features.map((f, i) => (
-                      <li key={i}>
-                        feature_{i + 1}: {f} - {selectedAnalysis.detailed_analysis[`feature_${i + 1}`] ? '✓ Present' : '✗ Missing'}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
               {/* Analysis Grid - FIXED */}
               <div className="analysis-grid">
                 {features.map((feature, index) => {

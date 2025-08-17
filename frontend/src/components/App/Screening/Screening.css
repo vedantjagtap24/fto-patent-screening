@@ -855,7 +855,7 @@ body.dark-mode .details-btn:disabled {
 
 /* ===== FIXED MODAL STYLES ===== */
 
-/* Modal Overlay - Fixed positioning */
+/* Modal Overlay - ULTIMATE CENTERING FIX */
 .modal-overlay {
 	position: fixed;
 	top: 0;
@@ -863,13 +863,18 @@ body.dark-mode .details-btn:disabled {
 	right: 0;
 	bottom: 0;
 	background: rgba(0, 0, 0, 0.5);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 1000;
-	padding: 1rem;
+	z-index: 1100;
 	backdrop-filter: blur(4px);
 	animation: modalOverlayFadeIn 0.3s ease-out;
+	/* Use grid for perfect centering */
+	display: grid;
+	place-items: center;
+	padding: 1rem;
+	box-sizing: border-box;
+	/* Override any potential conflicts */
+	margin: 0 !important;
+	width: 100vw !important;
+	height: 100vh !important;
 }
 
 @keyframes modalOverlayFadeIn {
@@ -883,11 +888,13 @@ body.dark-mode .details-btn:disabled {
 	}
 }
 
+/* Ensure modal overlay is above everything including sidebar */
 body.dark-mode .modal-overlay {
 	background: rgba(0, 0, 0, 0.7);
+	z-index: 1100; /* Higher than sidebar */
 }
 
-/* Modal Container - Fixed sizing and scrolling */
+/* Modal Container - Fixed sizing, scrolling and centering */
 .modal {
 	background: white;
 	border-radius: 1rem;
@@ -900,6 +907,13 @@ body.dark-mode .modal-overlay {
 	flex-direction: column;
 	overflow: hidden;
 	border: 1px solid rgba(229, 231, 235, 0.2);
+	/* Force centering and prevent left alignment */
+	margin: 0 auto;
+	position: relative;
+	/* Ensure it doesn't get pushed to sides */
+	left: 0;
+	right: 0;
+	transform: none;
 }
 
 @keyframes modalSlideIn {
@@ -913,11 +927,13 @@ body.dark-mode .modal-overlay {
 	}
 }
 
+/* Ensure modal appears above sidebar and is centered */
 body.dark-mode .modal {
 	background: #1f2937;
 	color: #f9fafb;
 	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 	border-color: rgba(75, 85, 99, 0.3);
+	z-index: 1101; /* Higher than overlay */
 }
 
 /* Modal Header - Fixed */
