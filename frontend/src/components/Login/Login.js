@@ -3,26 +3,45 @@ import { Eye, EyeOff } from 'lucide-react';
 import './Login.css';
 
 const Login = ({ onLogin }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  // Consolidated state
+  const [formState, setFormState] = useState({
+    email: '',
+    password: '',
+    showPassword: false,
+    isLoading: false
+  });
 
+  // Update form state helper
+  const updateFormState = (updates) => {
+    setFormState(prev => ({ ...prev, ...updates }));
+  };
+
+  // Handlers (consolidated)
   const handleLogin = () => {
-    if (!email || !password) return;
+    if (!formState.email || !formState.password) return;
     
-    setIsLoading(true);
+    updateFormState({ isLoading: true });
     setTimeout(() => {
-      setIsLoading(false);
-      onLogin({ email, name: email.split('@')[0] });
+      updateFormState({ isLoading: false });
+      onLogin({ 
+        email: formState.email, 
+        name: formState.email.split('@')[0] 
+      });
     }, 1500);
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && email && password && !isLoading) {
+    if (e.key === 'Enter' && formState.email && formState.password && !formState.isLoading) {
       handleLogin();
     }
   };
+
+  const togglePasswordVisibility = () => {
+    updateFormState({ showPassword: !formState.showPassword });
+  };
+
+  // Check if login is disabled
+  const isLoginDisabled = formState.isLoading || !formState.email || !formState.password;
 
   return (
     <div className="login-container">
@@ -39,8 +58,8 @@ const Login = ({ onLogin }) => {
             <label className="form-label">Email</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formState.email}
+              onChange={(e) => updateFormState({ email: e.target.value })}
               onKeyPress={handleKeyPress}
               placeholder="Enter your email"
               className="form-input"
@@ -51,29 +70,29 @@ const Login = ({ onLogin }) => {
             <label className="form-label">Password</label>
             <div className="password-input-container">
               <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                type={formState.showPassword ? 'text' : 'password'}
+                value={formState.password}
+                onChange={(e) => updateFormState({ password: e.target.value })}
                 onKeyPress={handleKeyPress}
                 placeholder="Enter your password"
                 className="form-input"
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={togglePasswordVisibility}
                 className="password-toggle"
               >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                {formState.showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
           </div>
 
           <button
             onClick={handleLogin}
-            disabled={isLoading || !email || !password}
-            className={`login-btn ${isLoading || !email || !password ? 'disabled' : ''}`}
+            disabled={isLoginDisabled}
+            className={`login-btn ${isLoginDisabled ? 'disabled' : ''}`}
           >
-            {isLoading ? (
+            {formState.isLoading ? (
               <div className="loading-content">
                 <div className="spinner"></div>
                 Logging in...

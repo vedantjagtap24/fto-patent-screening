@@ -6,6 +6,7 @@ import Dashboard from './Dashboard/Dashboard';
 import './MainLayout.css';
 
 const MainLayout = ({ user, onLogout }) => {
+  // UI State
   const [activeModule, setActiveModule] = useState('home');
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
@@ -13,62 +14,53 @@ const MainLayout = ({ user, onLogout }) => {
   const [backendStatus, setBackendStatus] = useState('checking');
   const dropdownRef = useRef(null);
 
-  // Processing state
-  const [file, setFile] = useState(null);
-  const [claims, setClaims] = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [results, setResults] = useState([]);
-  const [error, setError] = useState('');
-  const [processedCount, setProcessedCount] = useState(0);
-  const [currentlyProcessing, setCurrentlyProcessing] = useState('');
-  const [startTime, setStartTime] = useState(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [features, setFeatures] = useState([]);
+  // Processing State (consolidated)
+  const [processingState, setProcessingState] = useState({
+    file: null,
+    claims: [],
+    isProcessing: false,
+    progress: 0,
+    results: [],
+    error: '',
+    processedCount: 0,
+    currentlyProcessing: '',
+    startTime: null,
+    elapsedTime: 0,
+    features: []
+  });
 
+  // Effects (consolidated)
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-  }, [darkMode]);
-
-  useEffect(() => {
+    document.body.classList.toggle('dark-mode', darkMode);
     checkBackendStatus();
-  }, []);
-
-  useEffect(() => {
-    let interval;
-    if (isProcessing && startTime) {
-      interval = setInterval(() => {
-        setElapsedTime(Date.now() - startTime);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isProcessing, startTime]);
-
-  useEffect(() => {
+    
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
     };
-
+    
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [darkMode]);
+
+  useEffect(() => {
+    let interval;
+    if (processingState.isProcessing && processingState.startTime) {
+      interval = setInterval(() => {
+        setProcessingState(prev => ({
+          ...prev,
+          elapsedTime: Date.now() - prev.startTime
+        }));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [processingState.isProcessing, processingState.startTime]);
 
   const checkBackendStatus = async () => {
     try {
       const response = await fetch('/health');
-      if (response.ok) {
-        setBackendStatus('connected');
-      } else {
-        setBackendStatus('error');
-      }
+      setBackendStatus(response.ok ? 'connected' : 'error');
     } catch (error) {
       setBackendStatus('error');
     }
@@ -78,59 +70,62 @@ const MainLayout = ({ user, onLogout }) => {
     const seconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  };
 
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    } else {
-      return `${seconds}s`;
-    }
+  // Processing handlers (consolidated)
+  const updateProcessingState = (updates) => {
+    setProcessingState(prev => ({ ...prev, ...updates }));
   };
 
   const addFeature = (featureText) => {
-    if (featureText.trim() && !features.includes(featureText.trim())) {
-      setFeatures([...features, featureText.trim()]);
+    const trimmed = featureText.trim();
+    if (trimmed && !processingState.features.includes(trimmed)) {
+      updateProcessingState({ features: [...processingState.features, trimmed] });
       return true;
     }
     return false;
   };
 
   const removeFeature = (index) => {
-    setFeatures(features.filter((_, i) => i !== index));
+    updateProcessingState({ 
+      features: processingState.features.filter((_, i) => i !== index) 
+    });
   };
 
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
-      setError('Backend server is not running. Please start the backend server first.');
+      updateProcessingState({ error: 'Backend server is not running. Please start the backend server first.' });
       return;
     }
 
-    if (claims.length === 0 || features.length === 0) {
-      setError('Please upload file and add features');
+    if (processingState.claims.length === 0 || processingState.features.length === 0) {
+      updateProcessingState({ error: 'Please upload file and add features' });
       return;
     }
 
-    setIsProcessing(true);
-    setError('');
-    setResults([]);
-    setStartTime(Date.now());
+    updateProcessingState({
+      isProcessing: true,
+      error: '',
+      results: [],
+      startTime: Date.now(),
+      progress: 1,
+      processedCount: 1,
+      currentlyProcessing: `Processing patent 1 of ${processingState.claims.length}...`
+    });
 
-    // Start progress updates immediately
-    setProgress(1);
-    setProcessedCount(1);
-    setCurrentlyProcessing('Processing patent 1 of ' + claims.length + '...');
-
-    // Continue updating progress every second
     let count = 1;
     const progressTimer = setInterval(() => {
       count++;
-      if (count <= claims.length) {
-        const currentProgress = Math.round((count / claims.length) * 95);
-        
-        setProgress(currentProgress);
-        setProcessedCount(count);
-        setCurrentlyProcessing(`Processing patent ${count} of ${claims.length}...`);
+      if (count <= processingState.claims.length) {
+        updateProcessingState({
+          progress: Math.round((count / processingState.claims.length) * 95),
+          processedCount: count,
+          currentlyProcessing: `Processing patent ${count} of ${processingState.claims.length}...`
+        });
       }
     }, 800);
 
@@ -138,118 +133,114 @@ const MainLayout = ({ user, onLogout }) => {
       const response = await fetch('/analyze-all-claims', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ claims, features })
+        body: JSON.stringify({ 
+          claims: processingState.claims, 
+          features: processingState.features 
+        })
       });
 
       clearInterval(progressTimer);
-
       const data = await response.json();
+      
       if (data.success) {
-        setResults(data.results);
-        setProgress(100);
-        setProcessedCount(claims.length);
-        setCurrentlyProcessing('Analysis Complete!');
+        updateProcessingState({
+          results: data.results,
+          progress: 100,
+          processedCount: processingState.claims.length,
+          currentlyProcessing: 'Analysis Complete!'
+        });
       }
     } catch (error) {
       clearInterval(progressTimer);
       console.error('Analysis error:', error);
-      setError(`Error: ${error.message}`);
+      updateProcessingState({ error: `Error: ${error.message}` });
     } finally {
-      setIsProcessing(false);
+      updateProcessingState({ isProcessing: false });
     }
   };
 
   const clearAllData = () => {
-    setFile(null);
-    setClaims([]);
-    setResults([]);
-    setProgress(0);
-    setProcessedCount(0);
-    setElapsedTime(0);
-    setStartTime(null);
-    setCurrentlyProcessing('');
-    setError('');
-    setFeatures([]);
+    setProcessingState({
+      file: null,
+      claims: [],
+      results: [],
+      progress: 0,
+      processedCount: 0,
+      elapsedTime: 0,
+      startTime: null,
+      currentlyProcessing: '',
+      error: '',
+      features: [],
+      isProcessing: false
+    });
   };
 
+  // Navigation items
   const navigationItems = [
     { id: 'home', label: 'Home', icon: HomeIcon },
     { id: 'screening', label: 'Screening', icon: Filter },
     { id: 'dashboard', label: 'Dashboard', icon: BarChart }
   ];
 
+  // Component render functions
   const renderActiveModule = () => {
+    const moduleProps = {
+      backendStatus,
+      ...processingState,
+      setFile: (file) => updateProcessingState({ file }),
+      setClaims: (claims) => updateProcessingState({ claims }),
+      setError: (error) => updateProcessingState({ error }),
+      addFeature,
+      removeFeature,
+      startBulkScreening,
+      clearAllData,
+      formatElapsedTime
+    };
+
     switch (activeModule) {
-      case 'home':
-        return <Home onNavigate={setActiveModule} />;
-      case 'screening':
-        return (
-          <Screening 
-            backendStatus={backendStatus}
-            file={file}
-            setFile={setFile}
-            claims={claims}
-            setClaims={setClaims}
-            isProcessing={isProcessing}
-            progress={progress}
-            results={results}
-            error={error}
-            setError={setError}
-            processedCount={processedCount}
-            currentlyProcessing={currentlyProcessing}
-            elapsedTime={elapsedTime}
-            features={features}
-            addFeature={addFeature}
-            removeFeature={removeFeature}
-            startBulkScreening={startBulkScreening}
-            clearAllData={clearAllData}
-            formatElapsedTime={formatElapsedTime}
-          />
-        );
-      case 'dashboard':
-        return <Dashboard />;
-      default:
-        return <Home onNavigate={setActiveModule} />;
+      case 'home': return <Home onNavigate={setActiveModule} />;
+      case 'screening': return <Screening {...moduleProps} />;
+      case 'dashboard': return <Dashboard />;
+      default: return <Home onNavigate={setActiveModule} />;
     }
+  };
+
+  const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
+  const toggleSidebar = () => setSidebarVisible(!sidebarVisible);
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+    setIsDropdownOpen(false);
+  };
+  const handleLogout = () => {
+    onLogout();
+    setIsDropdownOpen(false);
   };
 
   return (
     <div className="dashboard-container">
       {/* User Dropdown */}
       <div className="user-dropdown-container" ref={dropdownRef}>
-        <button 
-          className="user-dropdown-trigger"
-          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        >
+        <button className="user-dropdown-trigger" onClick={toggleDropdown}>
           <div className="user-avatar">
             <User size={18} />
           </div>
-          <span className="user-name">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
-          <ChevronDown size={16} className={`dropdown-arrow ${isDropdownOpen ? 'rotated' : ''}`} />
+          <span className="user-name">
+            {user?.name || user?.email?.split('@')[0] || 'User'}
+          </span>
+          <ChevronDown 
+            size={16} 
+            className={`dropdown-arrow ${isDropdownOpen ? 'rotated' : ''}`} 
+          />
         </button>
 
         {isDropdownOpen && (
           <div className="user-dropdown-menu">
-            <button 
-              className="dropdown-item"
-              onClick={() => {
-                setDarkMode(!darkMode);
-                setIsDropdownOpen(false);
-              }}
-            >
+            <button className="dropdown-item" onClick={toggleDarkMode}>
               {darkMode ? <Sun size={16} /> : <Moon size={16} />}
               <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
-            
             <div className="dropdown-divider"></div>
-            
-            <button 
-              className="dropdown-item logout-item"
-              onClick={() => {
-                onLogout();
-                setIsDropdownOpen(false);
-              }}
-            >
+            <button className="dropdown-item logout-item" onClick={handleLogout}>
               <LogOut size={16} />
               <span>Logout</span>
             </button>
@@ -259,7 +250,7 @@ const MainLayout = ({ user, onLogout }) => {
 
       {/* Sidebar Toggle */}
       <button
-        onClick={() => setSidebarVisible(!sidebarVisible)}
+        onClick={toggleSidebar}
         className={`sidebar-toggle-btn ${sidebarVisible ? 'sidebar-toggle-shifted' : ''}`}
         title={sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
       >
@@ -290,17 +281,26 @@ const MainLayout = ({ user, onLogout }) => {
         </nav>
 
         <div className="sidebar-footer">
-          {/* Show processing status if analyzing */}
-          {isProcessing ? (
+          {/* Processing status */}
+          {processingState.isProcessing && (
             <div style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                marginBottom: '0.5rem' 
+              }}>
                 <Clock size={14} style={{ color: '#2563eb' }} />
-                <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#2563eb' }}>
-                  Analyzing: {Math.round(progress)}%
+                <span style={{ 
+                  fontSize: '0.875rem', 
+                  fontWeight: '600', 
+                  color: '#2563eb' 
+                }}>
+                  Analyzing: {Math.round(processingState.progress)}%
                 </span>
               </div>
               <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {processedCount}/{claims.length} patents • {formatElapsedTime(elapsedTime)}
+                {processingState.processedCount}/{processingState.claims.length} patents • {formatElapsedTime(processingState.elapsedTime)}
               </div>
               <div style={{ 
                 width: '100%',
@@ -313,16 +313,19 @@ const MainLayout = ({ user, onLogout }) => {
                 <div style={{ 
                   height: '100%',
                   background: 'linear-gradient(to right, #3b82f6, #4f46e5)',
-                  width: `${progress}%`,
+                  width: `${processingState.progress}%`,
                   transition: 'width 0.3s ease'
                 }} />
               </div>
             </div>
-          ) : null}
+          )}
 
           {/* System status */}
           <div className="status-indicator">
-            <div className={`status-dot ${backendStatus === 'connected' ? '' : backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'}`}></div>
+            <div className={`status-dot ${
+              backendStatus === 'connected' ? '' : 
+              backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
+            }`}></div>
             <span className="status-text">
               {backendStatus === 'connected' ? 'System Online' : 
                backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
@@ -332,7 +335,9 @@ const MainLayout = ({ user, onLogout }) => {
       </div>
 
       {/* Main Content Area */}
-      <div className={`main-content ${sidebarVisible ? 'main-content-with-sidebar' : 'main-content-full-width'}`}>
+      <div className={`main-content ${
+        sidebarVisible ? 'main-content-with-sidebar' : 'main-content-full-width'
+      }`}>
         {renderActiveModule()}
       </div>
     </div>

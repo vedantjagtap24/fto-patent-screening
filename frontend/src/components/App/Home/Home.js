@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lightbulb, Target, Zap, Layers, Search, List, X } from 'lucide-react';
 import './Home.css';
 
 const Home = ({ onNavigate }) => {
   const [activeModal, setActiveModal] = useState(null);
 
-  // Modal content data
+  // Modal content data (consolidated)
   const modalData = {
     objective: {
       title: "Objective",
@@ -103,25 +103,19 @@ const Home = ({ onNavigate }) => {
     }
   };
 
-  const openModal = (cardType) => {
-    setActiveModal(cardType);
-  };
+  // Modal handlers (consolidated)
+  const openModal = (cardType) => setActiveModal(cardType);
+  const closeModal = () => setActiveModal(null);
 
-  const closeModal = () => {
-    setActiveModal(null);
-  };
-
-  // Handle escape key to close modal
-  React.useEffect(() => {
+  // Handle escape key and body scroll
+  useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        closeModal();
-      }
+      if (e.key === 'Escape') closeModal();
     };
 
     if (activeModal) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      document.body.style.overflow = 'hidden';
     }
 
     return () => {
@@ -129,6 +123,64 @@ const Home = ({ onNavigate }) => {
       document.body.style.overflow = 'unset';
     };
   }, [activeModal]);
+
+  // Overview cards data
+  const overviewCards = [
+    {
+      id: 'objective',
+      icon: <Lightbulb size={32} className="icon-blue" />,
+      title: 'Objective',
+      description: 'Conduct Freedom to Operate (FTO) analysis on a large volume of patent claims through an automated, AI-driven system.'
+    },
+    {
+      id: 'searchObjective',
+      icon: <Target size={32} className="icon-blue" />,
+      title: 'Search Objective',
+      description: 'Detect potentially conflicting patents to mitigate infringement risks across critical technological areas.'
+    },
+    {
+      id: 'features',
+      icon: <Zap size={32} className="icon-blue" />,
+      title: 'Features',
+      description: 'Identifies and evaluates relevant features of the developed product against existing patents for FTO analysis.'
+    },
+    {
+      id: 'methodology',
+      icon: <Layers size={32} className="icon-blue" />,
+      title: 'Methodology',
+      description: 'Utilizes AI-based reasoning to evaluate and rank patents based on feature recognition and similarity metrics.'
+    },
+    {
+      id: 'searchStrategy',
+      icon: <Search size={32} className="icon-blue" />,
+      title: 'Search Strategy',
+      description: 'Patent data is sourced from leading databases using a combination of keywords, classification codes, and jurisdictional filters.'
+    },
+    {
+      id: 'assumptions',
+      icon: <List size={32} className="icon-blue" />,
+      title: 'Assumptions',
+      description: 'While automated tools assist the process, legal conclusions and infringement assessments require qualified patent attorneys or legal experts for validation.'
+    }
+  ];
+
+  // Action cards data
+  const actionCards = [
+    {
+      id: 'screening',
+      icon: <Zap size={24} />,
+      label: 'Start Patent Screening',
+      description: 'Upload and analyze patent claims',
+      className: 'screening-action'
+    },
+    {
+      id: 'dashboard',
+      icon: <Target size={24} />,
+      label: 'View Dashboard',
+      description: 'See analytics and insights',
+      className: 'dashboard-action'
+    }
+  ];
 
   return (
     <>
@@ -139,105 +191,44 @@ const Home = ({ onNavigate }) => {
             <p className="home-subtitle">AI-powered patent analysis platform for Freedom to Operate studies</p>
           </div>
 
+          {/* Overview Grid */}
           <div className="overview-grid">
-            {/* Objective Card */}
-            <div className="overview-card clickable-card" onClick={() => openModal('objective')}>
-              <div className="card-icon">
-                <Lightbulb size={32} className="icon-blue" />
+            {overviewCards.map((card) => (
+              <div 
+                key={card.id}
+                className="overview-card clickable-card" 
+                onClick={() => openModal(card.id)}
+              >
+                <div className="card-icon">{card.icon}</div>
+                <h3 className="card-title">{card.title}</h3>
+                <p className="card-description">{card.description}</p>
               </div>
-              <h3 className="card-title">Objective</h3>
-              <p className="card-description">
-                Conduct Freedom to Operate (FTO) analysis on a large volume
-                of patent claims through an automated, AI-driven system.
-              </p>
-            </div>
-
-            {/* Search Objective Card */}
-            <div className="overview-card clickable-card" onClick={() => openModal('searchObjective')}>
-              <div className="card-icon">
-                <Target size={32} className="icon-blue" />
-              </div>
-              <h3 className="card-title">Search Objective</h3>
-              <p className="card-description">
-                Detect potentially conflicting patents to mitigate infringement risks across critical technological areas.
-              </p>
-            </div>
-
-            {/* Features Card */}
-            <div className="overview-card clickable-card" onClick={() => openModal('features')}>
-              <div className="card-icon">
-                <Zap size={32} className="icon-blue" />
-              </div>
-              <h3 className="card-title">Features</h3>
-              <p className="card-description">
-                Identifies and evaluates relevant features of the developed product against existing patents for FTO analysis.
-              </p>
-            </div>
-
-            {/* Methodology Card */}
-            <div className="overview-card clickable-card" onClick={() => openModal('methodology')}>
-              <div className="card-icon">
-                <Layers size={32} className="icon-blue" />
-              </div>
-              <h3 className="card-title">Methodology</h3>
-              <p className="card-description">
-                Utilizes AI-based reasoning to evaluate and rank patents based on feature recognition and similarity metrics.
-              </p>
-            </div>
-
-            {/* Search Strategy Card */}
-            <div className="overview-card clickable-card" onClick={() => openModal('searchStrategy')}>
-              <div className="card-icon">
-                <Search size={32} className="icon-blue" />
-              </div>
-              <h3 className="card-title">Search Strategy</h3>
-              <p className="card-description">
-                Patent data is sourced from leading databases using a combination of keywords, classification codes, and jurisdictional filters.
-              </p>
-            </div>
-
-            {/* Assumptions Card */}
-            <div className="overview-card clickable-card" onClick={() => openModal('assumptions')}>
-              <div className="card-icon">
-                <List size={32} className="icon-blue" />
-              </div>
-              <h3 className="card-title">Assumptions</h3>
-              <p className="card-description">
-                While automated tools assist the process, legal conclusions and infringement assessments require qualified patent attorneys or legal experts for validation.
-              </p>
-            </div>
+            ))}
           </div>
 
-          {/* Quick Actions Section */}
+          {/* Quick Actions */}
           <div className="quick-actions">
             <h2 className="actions-title">Get Started</h2>
             <div className="actions-grid">
-              <button 
-                className="action-card screening-action"
-                onClick={() => onNavigate && onNavigate('screening')}
-              >
-                <Zap size={24} />
-                <div className="action-content">
-                  <span className="action-label">Start Patent Screening</span>
-                  <p className="action-description">Upload and analyze patent claims</p>
-                </div>
-              </button>
-              <button 
-                className="action-card dashboard-action"
-                onClick={() => onNavigate && onNavigate('dashboard')}
-              >
-                <Target size={24} />
-                <div className="action-content">
-                  <span className="action-label">View Dashboard</span>
-                  <p className="action-description">See analytics and insights</p>
-                </div>
-              </button>
+              {actionCards.map((action) => (
+                <button 
+                  key={action.id}
+                  className={`action-card ${action.className}`}
+                  onClick={() => onNavigate && onNavigate(action.id)}
+                >
+                  {action.icon}
+                  <div className="action-content">
+                    <span className="action-label">{action.label}</span>
+                    <p className="action-description">{action.description}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal Overlay */}
+      {/* Modal */}
       {activeModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
