@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Filter, BarChart, Home as HomeIcon, Menu, X, User, Moon, Sun, LogOut, ChevronDown, Clock } from 'lucide-react';
+import { Filter, BarChart, Home as HomeIcon, User, Moon, Sun, LogOut, ChevronDown, Clock } from 'lucide-react';
 import { supabase, signOut } from '../../lib/supabase';
 import Home from './Home/Home';
 import Screening from './Screening/Screening';
@@ -9,7 +9,6 @@ import './MainLayout.css';
 const MainLayout = ({ user, session, onLogout }) => {
   // UI State
   const [activeModule, setActiveModule] = useState('home');
-  const [sidebarVisible, setSidebarVisible] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [backendStatus, setBackendStatus] = useState('checking');
@@ -326,7 +325,6 @@ const MainLayout = ({ user, session, onLogout }) => {
   };
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
-  const toggleSidebar = () => setSidebarVisible(!sidebarVisible);
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
     setIsDropdownOpen(false);
@@ -344,7 +342,7 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   return (
     <div className="dashboard-container">
-      {/* User Dropdown */}
+      {/* User Dropdown - Fixed Top Right */}
       <div className="user-dropdown-container" ref={dropdownRef}>
         <button className="user-dropdown-trigger" onClick={toggleDropdown}>
           <div className="user-avatar">
@@ -374,17 +372,8 @@ const MainLayout = ({ user, session, onLogout }) => {
         )}
       </div>
 
-      {/* Sidebar Toggle */}
-      <button
-        onClick={toggleSidebar}
-        className={`sidebar-toggle-btn ${sidebarVisible ? 'sidebar-toggle-shifted' : ''}`}
-        title={sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
-      >
-        {sidebarVisible ? <X size={20} /> : <Menu size={20} />}
-      </button>
-
-      {/* Sidebar */}
-      <div className={`sidebar ${sidebarVisible ? 'sidebar-visible' : 'sidebar-hidden'}`}>
+      {/* Sidebar - Always Visible */}
+      <div className="sidebar sidebar-fixed">
         <div className="sidebar-header">
           <h1 className="sidebar-title">FTOlyzer</h1>
           <p className="sidebar-subtitle">Patent Analysis Platform</p>
@@ -460,10 +449,8 @@ const MainLayout = ({ user, session, onLogout }) => {
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className={`main-content ${
-        sidebarVisible ? 'main-content-with-sidebar' : 'main-content-full-width'
-      }`}>
+      {/* Main Content Area - Always with sidebar margin */}
+      <div className="main-content main-content-with-sidebar">
         {renderActiveModule()}
       </div>
     </div>
