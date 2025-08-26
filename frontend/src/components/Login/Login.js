@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
-import { signIn, signUp } from '../../lib/supabase';
+import { Eye, EyeOff, Mail } from 'lucide-react';
+import { signIn, signUp, supabase } from '../../lib/supabase';
 import './Login.css';
 
 const Login = ({ onLogin }) => {
@@ -13,6 +13,7 @@ const Login = ({ onLogin }) => {
     showConfirmPassword: false,
     isLoading: false,
     isSignUp: false,
+    isForgotPassword: false,
     error: '',
     successMessage: ''
   });
@@ -24,6 +25,21 @@ const Login = ({ onLogin }) => {
 
   // Input validation
   const validateInputs = () => {
+    if (formState.isForgotPassword) {
+      if (!formState.email) {
+        updateFormState({ error: 'Please enter your email address' });
+        return false;
+      }
+      
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formState.email)) {
+        updateFormState({ error: 'Please enter a valid email address' });
+        return false;
+      }
+      
+      return true;
+    }
+
     if (!formState.email || !formState.password) {
       updateFormState({ error: 'Please fill in all fields' });
       return false;
@@ -54,6 +70,37 @@ const Login = ({ onLogin }) => {
     }
 
     return true;
+  };
+
+  // Simple forgot password - no redirect, let Supabase handle everything
+  const handleForgotPassword = async () => {
+    if (!validateInputs()) return;
+    
+    updateFormState({ isLoading: true, error: '' });
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(formState.email);
+
+      if (error) {
+        updateFormState({ 
+          error: error.message, 
+          isLoading: false 
+        });
+        return;
+      }
+
+      updateFormState({
+        successMessage: 'Password reset email sent! Check your inbox and follow the instructions. You will be redirected to a secure page to set your new password.',
+        isLoading: false,
+        error: ''
+      });
+    } catch (error) {
+      console.error('Password reset error:', error);
+      updateFormState({ 
+        error: 'Failed to send reset email. Please try again.', 
+        isLoading: false 
+      });
+    }
   };
 
   // Handlers (consolidated)
@@ -134,8 +181,12 @@ const Login = ({ onLogin }) => {
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !formState.isLoading) {
-      if (formState.email && formState.password && (!formState.isSignUp || formState.confirmPassword)) {
-        handleAuth();
+      if (formState.isForgotPassword) {
+        if (formState.email) handleForgotPassword();
+      } else {
+        if (formState.email && formState.password && (!formState.isSignUp || formState.confirmPassword)) {
+          handleAuth();
+        }
       }
     }
   };
@@ -151,6 +202,7 @@ const Login = ({ onLogin }) => {
   const toggleAuthMode = () => {
     updateFormState({ 
       isSignUp: !formState.isSignUp, 
+      isForgotPassword: false,
       error: '',
       successMessage: '',
       email: '',
@@ -159,9 +211,32 @@ const Login = ({ onLogin }) => {
     });
   };
 
+  const toggleForgotPassword = () => {
+    updateFormState({
+      isForgotPassword: !formState.isForgotPassword,
+      isSignUp: false,
+      error: '',
+      successMessage: '',
+      password: '',
+      confirmPassword: ''
+    });
+  };
+
+  const backToLogin = () => {
+    updateFormState({
+      isForgotPassword: false,
+      isSignUp: false,
+      error: '',
+      successMessage: '',
+      password: '',
+      confirmPassword: ''
+    });
+  };
+
   // Check if auth is disabled
   const isAuthDisabled = () => {
     if (formState.isLoading) return true;
+    if (formState.isForgotPassword) return !formState.email;
     if (formState.isSignUp) return !formState.email || !formState.password || !formState.confirmPassword;
     return !formState.email || !formState.password;
   };
@@ -172,7 +247,10 @@ const Login = ({ onLogin }) => {
         <div className="login-header">
           <h1 className="login-title">Welcome to FTOlyzer</h1>
           <p className="login-subtitle">
-            Analyze patent claims with smart features and confident clarity.
+            {formState.isForgotPassword 
+              ? 'Enter your email to reset your password'
+              : 'Analyze patent claims with smart features and confident clarity.'
+            }
           </p>
         </div>
 
@@ -202,30 +280,32 @@ const Login = ({ onLogin }) => {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <div className="password-input-container">
-              <input
-                type={formState.showPassword ? 'text' : 'password'}
-                value={formState.password}
-                onChange={(e) => updateFormState({ password: e.target.value, error: '', successMessage: '' })}
-                onKeyPress={handleKeyPress}
-                placeholder={formState.isSignUp ? "Choose a password (min 6 characters)" : "Enter your password"}
-                className="form-input"
-                minLength={formState.isSignUp ? 6 : undefined}
-                required
-              />
-              <button
-                type="button"
-                onClick={togglePasswordVisibility}
-                className="password-toggle"
-              >
-                {formState.showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
+          {!formState.isForgotPassword && (
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <div className="password-input-container">
+                <input
+                  type={formState.showPassword ? 'text' : 'password'}
+                  value={formState.password}
+                  onChange={(e) => updateFormState({ password: e.target.value, error: '', successMessage: '' })}
+                  onKeyPress={handleKeyPress}
+                  placeholder={formState.isSignUp ? "Choose a password (min 6 characters)" : "Enter your password"}
+                  className="form-input"
+                  minLength={formState.isSignUp ? 6 : undefined}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="password-toggle"
+                >
+                  {formState.showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {formState.isSignUp && (
+          {formState.isSignUp && !formState.isForgotPassword && (
             <div className="form-group">
               <label className="form-label">Confirm Password</label>
               <div className="password-input-container">
@@ -249,33 +329,76 @@ const Login = ({ onLogin }) => {
             </div>
           )}
 
-          <button
-            onClick={handleAuth}
-            disabled={isAuthDisabled()}
-            className={`login-btn ${isAuthDisabled() ? 'disabled' : ''}`}
-          >
-            {formState.isLoading ? (
-              <div className="loading-content">
-                <div className="spinner"></div>
-                {formState.isSignUp ? 'Creating Account...' : 'Signing In...'}
-              </div>
-            ) : (
-              formState.isSignUp ? 'Create Account' : 'Sign In'
-            )}
-          </button>
+          {formState.isForgotPassword ? (
+            <button
+              onClick={handleForgotPassword}
+              disabled={isAuthDisabled()}
+              className={`login-btn ${isAuthDisabled() ? 'disabled' : ''}`}
+            >
+              {formState.isLoading ? (
+                <div className="loading-content">
+                  <div className="spinner"></div>
+                  Sending Reset Email...
+                </div>
+              ) : (
+                <>
+                  <Mail size={20} style={{ marginRight: '0.5rem' }} />
+                  Send Reset Email
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={handleAuth}
+              disabled={isAuthDisabled()}
+              className={`login-btn ${isAuthDisabled() ? 'disabled' : ''}`}
+            >
+              {formState.isLoading ? (
+                <div className="loading-content">
+                  <div className="spinner"></div>
+                  {formState.isSignUp ? 'Creating Account...' : 'Signing In...'}
+                </div>
+              ) : (
+                formState.isSignUp ? 'Create Account' : 'Sign In'
+              )}
+            </button>
+          )}
         </div>
 
         <div className="login-footer">
-          <button 
-            className="auth-toggle-btn"
-            onClick={toggleAuthMode}
-            disabled={formState.isLoading}
-          >
-            {formState.isSignUp 
-              ? 'Already have an account? Sign In' 
-              : "Don't have an account? Sign Up"
-            }
-          </button>
+          {formState.isForgotPassword ? (
+            <button 
+              className="auth-toggle-btn"
+              onClick={backToLogin}
+              disabled={formState.isLoading}
+            >
+              Back to Sign In
+            </button>
+          ) : (
+            <>
+              <button 
+                className="auth-toggle-btn"
+                onClick={toggleAuthMode}
+                disabled={formState.isLoading}
+                style={{ marginBottom: '0.5rem' }}
+              >
+                {formState.isSignUp 
+                  ? 'Already have an account? Sign In' 
+                  : "Don't have an account? Sign Up"
+                }
+              </button>
+              
+              {!formState.isSignUp && (
+                <button 
+                  className="auth-toggle-btn forgot-password-btn"
+                  onClick={toggleForgotPassword}
+                  disabled={formState.isLoading}
+                >
+                  Forgot your password?
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
