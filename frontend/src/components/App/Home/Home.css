@@ -185,9 +185,9 @@ body.dark-mode .action-description { color: #9ca3af; }
 .modal-content {
   background: linear-gradient(145deg, #ffffff, #f8fafc);
   border-radius: 16px;
-  max-width: 600px;
-  width: 90%;
-  max-height: 80vh;
+  max-width: 750px;
+  width: 95%;
+  max-height: 85vh;
   overflow: hidden;
   box-shadow: 
     0 20px 40px -12px rgba(0, 0, 0, 0.15),
