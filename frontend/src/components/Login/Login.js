@@ -90,7 +90,7 @@ const Login = ({ onLogin }) => {
       }
 
       updateFormState({
-        successMessage: 'Password reset email sent! Please check your inbox.',
+        successMessage: 'Password reset email sent! Please check your inbox and follow the instructions to reset your password.',
         isLoading: false,
         error: ''
       });
@@ -114,12 +114,6 @@ const Login = ({ onLogin }) => {
         ? await signUp(formState.email, formState.password)
         : await signIn(formState.email, formState.password);
 
-      // Debug logging (remove in production)
-      console.log('Supabase data:', data);
-      console.log('Supabase error:', error);
-      console.log('Has session:', !!data?.session);
-      console.log('Has user:', !!data?.user);
-
       if (error) {
         console.error('Authentication error:', error);
         
@@ -131,6 +125,8 @@ const Login = ({ onLogin }) => {
           errorMessage = 'Please check your email and click the confirmation link before signing in.';
         } else if (error.message.includes('User already registered')) {
           errorMessage = 'An account with this email already exists. Please sign in instead.';
+        } else if (error.message.includes('Signup not allowed')) {
+          errorMessage = 'New signups are currently disabled. Please contact support.';
         }
         
         updateFormState({ error: errorMessage, isLoading: false });
@@ -146,11 +142,13 @@ const Login = ({ onLogin }) => {
         return;
       }
 
-      if (formState.isSignUp && !data.user?.email_confirmed_at) {
+      if (formState.isSignUp) {
         updateFormState({ 
-          error: 'Please check your email and click the confirmation link before signing in.',
+          successMessage: 'Account created successfully! Please check your email to confirm your account before signing in.',
           isLoading: false,
-          isSignUp: false
+          isSignUp: false,
+          password: '',
+          confirmPassword: ''
         });
         return;
       }

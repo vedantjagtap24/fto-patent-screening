@@ -1,6 +1,6 @@
 /* ===== LOGIN CONTAINER ===== */
 .login-container {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,7 +11,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* ===== LOGIN CARD ===== */
@@ -25,6 +25,8 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 3rem 2rem;
   animation: slideUp 0.6s ease-out;
+  margin: auto;
+  my: 1rem;
 }
 
 @keyframes slideUp {
@@ -248,4 +250,49 @@
   .login-btn { padding: 0.875rem; font-size: 0.95rem; }
   .auth-toggle-btn { font-size: 0.8rem; }
   .forgot-password-btn { font-size: 0.75rem; }
+}
+
+@media (max-height: 700px) {
+  .login-card { 
+    padding: 2rem 1.5rem; 
+    margin: 1rem auto;
+  }
+  
+  .login-form {
+    gap: 1.25rem;
+  }
+  
+  .form-input {
+    padding: 0.875rem;
+  }
+  
+  .login-header {
+    margin-bottom: 2rem;
+  }
+  
+  .login-title {
+    font-size: 1.5rem;
+  }
+  
+  .login-subtitle {
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-height: 600px) {
+  .login-card { 
+    padding: 1.5rem; 
+  }
+  
+  .login-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .login-form {
+    gap: 1rem;
+  }
+  
+  .login-footer {
+    margin-top: 1.5rem;
+  }
 }
