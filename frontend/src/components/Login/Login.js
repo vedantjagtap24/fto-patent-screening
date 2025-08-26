@@ -72,6 +72,26 @@ const Login = ({ onLogin }) => {
     return true;
   };
 
+  // Check if email already exists
+  const checkEmailExists = async (email) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: 'dummy_password_to_check_existence'
+      });
+      
+      // If we get a "Invalid login credentials" error, the email exists but password is wrong
+      // If we get a different error, the email might not exist
+      if (error && error.message.includes('Invalid login credentials')) {
+        return true; // Email exists
+      }
+      
+      return false; // Email doesn't exist or other error
+    } catch (error) {
+      return false;
+    }
+  };
+
   // Simple forgot password - no redirect, let Supabase handle everything
   const handleForgotPassword = async () => {
     if (!validateInputs()) return;
@@ -110,6 +130,18 @@ const Login = ({ onLogin }) => {
     updateFormState({ isLoading: true, error: '', successMessage: '' });
     
     try {
+      // For signup, check if email already exists first
+      if (formState.isSignUp) {
+        const emailExists = await checkEmailExists(formState.email);
+        if (emailExists) {
+          updateFormState({ 
+            error: 'This email is already registered. Please sign in instead or use a different email.',
+            isLoading: false 
+          });
+          return;
+        }
+      }
+
       const { data, error } = formState.isSignUp 
         ? await signUp(formState.email, formState.password)
         : await signIn(formState.email, formState.password);
@@ -124,7 +156,7 @@ const Login = ({ onLogin }) => {
         } else if (error.message.includes('Email not confirmed')) {
           errorMessage = 'Please check your email and click the confirmation link before signing in.';
         } else if (error.message.includes('User already registered')) {
-          errorMessage = 'An account with this email already exists. Please sign in instead.';
+          errorMessage = 'This email is already registered. Please sign in instead.';
         } else if (error.message.includes('Signup not allowed')) {
           errorMessage = 'New signups are currently disabled. Please contact support.';
         } else if (error.message.includes('already registered') || error.message.includes('already exists')) {
