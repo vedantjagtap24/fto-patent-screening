@@ -53,6 +53,7 @@ const authenticateUser = async (req, res, next) => {
 
 // Static file serving (consolidated path checking)
 const buildPaths = [
+  path.join(__dirname, 'public'),
   path.join(__dirname, '../frontend/build'),
   path.join(process.cwd(), 'frontend/build'),
   '/app/frontend/build'
@@ -105,7 +106,9 @@ app.get('/health', (req, res) => {
       port: port,
       env: process.env.NODE_ENV || 'development',
       openaiConfigured: !!process.env.OPENAI_API_KEY,
-      supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+      supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+      buildPathFound: !!buildPath,
+      buildPath: buildPath || 'Not found'
     });
   } catch (error) {
     console.error('Error in health check:', error);
@@ -292,7 +295,7 @@ ${features.map((feature, index) => `  "feature_${index + 1}": {
 IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not the full text content.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1',
+    model: 'gpt-4',
     messages: [
       {
         role: 'system',
@@ -546,11 +549,13 @@ app.get('/api/projects/:projectId/results', authenticateUser, async (req, res) =
   }
 });
 
-// Legacy endpoint for backward compatibility (will be removed later)
+// Temporary backward compatibility endpoint
 app.post('/analyze-all-claims', async (req, res) => {
   res.status(400).json({
-    error: 'This endpoint is deprecated. Please use the new project-based API.',
-    message: 'Create a project first, then use /api/projects/:projectId/analyze'
+    success: false,
+    error: 'Please update to the new authentication system',
+    message: 'This endpoint requires user authentication. Please log out and log back in.',
+    results: []
   });
 });
 
@@ -560,9 +565,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-// Serve React app for all other routes
+// Serve React app for all other routes with fallback
 app.get('*', (req, res) => {
   const indexPaths = [
+    path.join(__dirname, 'public/index.html'),
     path.join(__dirname, '../frontend/build/index.html'),
     path.join(process.cwd(), 'frontend/build/index.html'),
     '/app/frontend/build/index.html'
@@ -573,7 +579,72 @@ app.get('*', (req, res) => {
   if (indexPath) {
     res.sendFile(indexPath);
   } else {
-    res.status(404).send('Frontend build not found');
+    // Fallback for missing build
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>FTO Patent Screening - Backend Running</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+              max-width: 800px; 
+              margin: 0 auto; 
+              padding: 2rem; 
+              background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+              color: white;
+              min-height: 100vh;
+            }
+            .container { 
+              background: rgba(255, 255, 255, 0.1); 
+              padding: 2rem; 
+              border-radius: 12px; 
+              backdrop-filter: blur(10px);
+            }
+            h1 { color: #93c5fd; }
+            .status { color: #34d399; font-weight: bold; }
+            .api-list { background: rgba(255, 255, 255, 0.05); padding: 1rem; border-radius: 8px; }
+            .api-endpoint { margin: 0.5rem 0; font-family: monospace; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>FTO Patent Screening Backend</h1>
+            <p class="status">✅ Backend server is running successfully!</p>
+            
+            <h3>Issue: Frontend build not found</h3>
+            <p>The React frontend build files are missing. This usually happens when:</p>
+            <ul>
+              <li>Frontend dependencies weren't installed properly</li>
+              <li>The build process failed during deployment</li>
+              <li>Build files are in a different location</li>
+            </ul>
+            
+            <h3>Available API Endpoints:</h3>
+            <div class="api-list">
+              <div class="api-endpoint">GET /health - Backend health check</div>
+              <div class="api-endpoint">POST /api/projects - Create project (requires auth)</div>
+              <div class="api-endpoint">GET /api/projects - List projects (requires auth)</div>
+              <div class="api-endpoint">POST /api/projects/:id/analyze - Run analysis (requires auth)</div>
+            </div>
+            
+            <h3>System Status:</h3>
+            <ul>
+              <li>OpenAI API: ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Missing'}</li>
+              <li>Supabase: ${process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Configured' : '❌ Missing'}</li>
+              <li>Build Path: ${buildPath ? '✅ Found at ' + buildPath : '❌ Not found'}</li>
+            </ul>
+            
+            <p><strong>Next Steps:</strong></p>
+            <ol>
+              <li>Check Railway deployment logs for build errors</li>
+              <li>Ensure frontend dependencies are installed</li>
+              <li>Verify build process completes successfully</li>
+            </ol>
+          </div>
+        </body>
+      </html>
+    `);
   }
 });
 
@@ -583,5 +654,6 @@ app.listen(port, '0.0.0.0', () => {
   console.log('OpenAI API Key present:', !!process.env.OPENAI_API_KEY);
   console.log('Supabase configured:', !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY));
   console.log('Build path found:', !!buildPath);
+  if (buildPath) console.log('Serving static files from:', buildPath);
   console.log('Server started successfully!');
 });
