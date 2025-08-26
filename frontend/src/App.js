@@ -27,8 +27,17 @@ function App() {
   }, []);
 
   const handleLogin = (authData) => {
-    setSession(authData.session);
-    setUser(authData.user);
+    console.log('handleLogin called with:', authData);
+    
+    // Validate the auth data before setting state
+    if (authData && authData.user && authData.session) {
+      setSession(authData.session);
+      setUser(authData.user);
+      console.log('Login successful, user set:', authData.user.email);
+    } else {
+      console.error('Invalid auth data received:', authData);
+      // Don't set session/user if data is invalid
+    }
   };
 
   const handleLogout = () => {
