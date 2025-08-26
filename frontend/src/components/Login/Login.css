@@ -55,6 +55,23 @@
   line-height: 1.5;
 }
 
+/* ===== ERROR MESSAGE ===== */
+.error-message {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ===== FORM ===== */
 .login-form {
   display: flex;
@@ -171,7 +188,7 @@
   text-align: center;
 }
 
-.forgot-password-btn {
+.auth-toggle-btn {
   font-size: 0.875rem;
   font-weight: 500;
   color: #2563eb;
@@ -184,9 +201,14 @@
   border-radius: 0.25rem;
 }
 
-.forgot-password-btn:hover {
+.auth-toggle-btn:hover {
   color: #1d4ed8;
   background: rgba(37, 99, 235, 0.1);
+}
+
+.auth-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
