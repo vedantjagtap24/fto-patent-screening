@@ -55,11 +55,22 @@
   line-height: 1.5;
 }
 
-/* ===== ERROR MESSAGE ===== */
+/* ===== ERROR & SUCCESS MESSAGES ===== */
 .error-message {
   background-color: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.success-message {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
@@ -145,6 +156,9 @@
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(5, 150, 105, 0.3);
   margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .login-btn:hover:not(.disabled) {
@@ -186,6 +200,9 @@
 .login-footer {
   margin-top: 2rem;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .auth-toggle-btn {
@@ -211,6 +228,16 @@
   cursor: not-allowed;
 }
 
+.forgot-password-btn {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.forgot-password-btn:hover {
+  color: #374151;
+}
+
 /* ===== RESPONSIVE DESIGN ===== */
 @media (max-width: 480px) {
   .login-container { padding: 0.5rem; }
@@ -219,4 +246,6 @@
   .login-subtitle { font-size: 0.875rem; }
   .form-input { padding: 0.875rem; font-size: 0.95rem; }
   .login-btn { padding: 0.875rem; font-size: 0.95rem; }
+  .auth-toggle-btn { font-size: 0.8rem; }
+  .forgot-password-btn { font-size: 0.75rem; }
 }
