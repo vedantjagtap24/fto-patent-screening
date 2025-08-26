@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Filter, BarChart, Home as HomeIcon, Menu, X, User, Moon, Sun, LogOut, ChevronDown, Clock } from 'lucide-react';
+import { supabase, signOut } from '../lib/supabase';
 import Home from './Home/Home';
 import Screening from './Screening/Screening';
 import Dashboard from './Dashboard/Dashboard';
 import './MainLayout.css';
 
-const MainLayout = ({ user, onLogout }) => {
+const MainLayout = ({ user, session, onLogout }) => {
   // UI State
   const [activeModule, setActiveModule] = useState('home');
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -14,10 +15,12 @@ const MainLayout = ({ user, onLogout }) => {
   const [backendStatus, setBackendStatus] = useState('checking');
   const dropdownRef = useRef(null);
 
-  // Processing State (consolidated)
-  const [processingState, setProcessingState] = useState({
+  // Project and Processing State (consolidated)
+  const [appState, setAppState] = useState({
+    currentProject: null,
     file: null,
     claims: [],
+    features: [],
     isProcessing: false,
     progress: 0,
     results: [],
@@ -25,14 +28,14 @@ const MainLayout = ({ user, onLogout }) => {
     processedCount: 0,
     currentlyProcessing: '',
     startTime: null,
-    elapsedTime: 0,
-    features: []
+    elapsedTime: 0
   });
 
   // Effects (consolidated)
   useEffect(() => {
     document.body.classList.toggle('dark-mode', darkMode);
     checkBackendStatus();
+    loadUserData();
     
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -46,16 +49,42 @@ const MainLayout = ({ user, onLogout }) => {
 
   useEffect(() => {
     let interval;
-    if (processingState.isProcessing && processingState.startTime) {
+    if (appState.isProcessing && appState.startTime) {
       interval = setInterval(() => {
-        setProcessingState(prev => ({
+        setAppState(prev => ({
           ...prev,
           elapsedTime: Date.now() - prev.startTime
         }));
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [processingState.isProcessing, processingState.startTime]);
+  }, [appState.isProcessing, appState.startTime]);
+
+  // API Helper
+  const apiCall = async (endpoint, method = 'GET', body = null) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`
+    };
+
+    const config = {
+      method,
+      headers
+    };
+
+    if (body) {
+      config.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(endpoint, config);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'API request failed');
+    }
+
+    return data;
+  };
 
   const checkBackendStatus = async () => {
     try {
@@ -63,6 +92,53 @@ const MainLayout = ({ user, onLogout }) => {
       setBackendStatus(response.ok ? 'connected' : 'error');
     } catch (error) {
       setBackendStatus('error');
+    }
+  };
+
+  const loadUserData = async () => {
+    try {
+      if (!session) return;
+
+      // Get user's projects
+      const projectsData = await apiCall('/api/projects');
+      
+      if (projectsData.success && projectsData.projects.length > 0) {
+        // Load the most recent project
+        const latestProject = projectsData.projects[0];
+        
+        // Load project features
+        const featuresData = await apiCall(`/api/projects/${latestProject.id}/features`);
+        const features = featuresData.success ? featuresData.features.map(f => f.name) : [];
+        
+        // Load project claims
+        const claimsData = await apiCall(`/api/projects/${latestProject.id}/claims`);
+        const claims = claimsData.success ? claimsData.claims.map(c => ({
+          'S.No.': c.claim_number,
+          'Publication Number': c.publication_number,
+          'Claims': c.claims_text,
+          ...c.raw_data
+        })) : [];
+        
+        // Load analysis results if project is completed
+        let results = [];
+        if (latestProject.status === 'completed') {
+          const resultsData = await apiCall(`/api/projects/${latestProject.id}/results`);
+          if (resultsData.success) {
+            results = resultsData.results;
+          }
+        }
+
+        setAppState(prev => ({
+          ...prev,
+          currentProject: latestProject,
+          features,
+          claims,
+          results,
+          isProcessing: latestProject.status === 'processing'
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
     }
   };
 
@@ -77,90 +153,134 @@ const MainLayout = ({ user, onLogout }) => {
   };
 
   // Processing handlers (consolidated)
-  const updateProcessingState = (updates) => {
-    setProcessingState(prev => ({ ...prev, ...updates }));
+  const updateAppState = (updates) => {
+    setAppState(prev => ({ ...prev, ...updates }));
   };
 
   const addFeature = (featureText) => {
     const trimmed = featureText.trim();
-    if (trimmed && !processingState.features.includes(trimmed)) {
-      updateProcessingState({ features: [...processingState.features, trimmed] });
+    if (trimmed && !appState.features.includes(trimmed)) {
+      updateAppState({ features: [...appState.features, trimmed] });
       return true;
     }
     return false;
   };
 
   const removeFeature = (index) => {
-    updateProcessingState({ 
-      features: processingState.features.filter((_, i) => i !== index) 
+    updateAppState({ 
+      features: appState.features.filter((_, i) => i !== index) 
     });
+  };
+
+  const createProject = async () => {
+    try {
+      const projectData = await apiCall('/api/projects', 'POST', {
+        name: `Analysis Project ${new Date().toLocaleDateString()}`,
+        description: 'Patent analysis project'
+      });
+
+      if (projectData.success) {
+        updateAppState({ currentProject: projectData.project });
+        return projectData.project;
+      }
+    } catch (error) {
+      console.error('Error creating project:', error);
+      updateAppState({ error: 'Failed to create project: ' + error.message });
+      return null;
+    }
+  };
+
+  const saveFeatures = async (projectId, features) => {
+    try {
+      await apiCall(`/api/projects/${projectId}/features`, 'POST', { features });
+    } catch (error) {
+      console.error('Error saving features:', error);
+      throw error;
+    }
+  };
+
+  const saveClaims = async (projectId, claims) => {
+    try {
+      await apiCall(`/api/projects/${projectId}/claims`, 'POST', { claims });
+    } catch (error) {
+      console.error('Error saving claims:', error);
+      throw error;
+    }
   };
 
   const startBulkScreening = async () => {
     if (backendStatus !== 'connected') {
-      updateProcessingState({ error: 'Backend server is not running. Please start the backend server first.' });
+      updateAppState({ error: 'Backend server is not running. Please start the backend server first.' });
       return;
     }
 
-    if (processingState.claims.length === 0 || processingState.features.length === 0) {
-      updateProcessingState({ error: 'Please upload file and add features' });
+    if (appState.claims.length === 0 || appState.features.length === 0) {
+      updateAppState({ error: 'Please upload file and add features' });
       return;
     }
-
-    updateProcessingState({
-      isProcessing: true,
-      error: '',
-      results: [],
-      startTime: Date.now(),
-      progress: 1,
-      processedCount: 1,
-      currentlyProcessing: `Processing patent 1 of ${processingState.claims.length}...`
-    });
-
-    let count = 1;
-    const progressTimer = setInterval(() => {
-      count++;
-      if (count <= processingState.claims.length) {
-        updateProcessingState({
-          progress: Math.round((count / processingState.claims.length) * 95),
-          processedCount: count,
-          currentlyProcessing: `Processing patent ${count} of ${processingState.claims.length}...`
-        });
-      }
-    }, 800);
 
     try {
-      const response = await fetch('/analyze-all-claims', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          claims: processingState.claims, 
-          features: processingState.features 
-        })
+      let project = appState.currentProject;
+
+      // Create project if it doesn't exist
+      if (!project) {
+        project = await createProject();
+        if (!project) return;
+      }
+
+      // Save features and claims to database
+      await saveFeatures(project.id, appState.features);
+      await saveClaims(project.id, appState.claims);
+
+      updateAppState({
+        isProcessing: true,
+        error: '',
+        results: [],
+        startTime: Date.now(),
+        progress: 1,
+        processedCount: 1,
+        currentlyProcessing: `Processing patent 1 of ${appState.claims.length}...`
       });
 
+      // Simulate progress updates
+      let count = 1;
+      const progressTimer = setInterval(() => {
+        count++;
+        if (count <= appState.claims.length) {
+          updateAppState({
+            progress: Math.round((count / appState.claims.length) * 95),
+            processedCount: count,
+            currentlyProcessing: `Processing patent ${count} of ${appState.claims.length}...`
+          });
+        }
+      }, 800);
+
+      // Start analysis
+      const analysisData = await apiCall(`/api/projects/${project.id}/analyze`, 'POST');
+
       clearInterval(progressTimer);
-      const data = await response.json();
-      
-      if (data.success) {
-        updateProcessingState({
-          results: data.results,
+
+      if (analysisData.success) {
+        updateAppState({
+          results: analysisData.results,
           progress: 100,
-          processedCount: processingState.claims.length,
-          currentlyProcessing: 'Analysis Complete!'
+          processedCount: appState.claims.length,
+          currentlyProcessing: 'Analysis Complete!',
+          isProcessing: false
         });
       }
     } catch (error) {
-      clearInterval(progressTimer);
       console.error('Analysis error:', error);
-      updateProcessingState({ error: `Error: ${error.message}` });
-    } finally {
-      updateProcessingState({ isProcessing: false });
+      updateAppState({ 
+        error: `Error: ${error.message}`,
+        isProcessing: false
+      });
     }
   };
 
   const clearAllData = () => {
-    setProcessingState({
+    setAppState({
+      currentProject: null,
       file: null,
       claims: [],
       results: [],
@@ -186,10 +306,10 @@ const MainLayout = ({ user, onLogout }) => {
   const renderActiveModule = () => {
     const moduleProps = {
       backendStatus,
-      ...processingState,
-      setFile: (file) => updateProcessingState({ file }),
-      setClaims: (claims) => updateProcessingState({ claims }),
-      setError: (error) => updateProcessingState({ error }),
+      ...appState,
+      setFile: (file) => updateAppState({ file }),
+      setClaims: (claims) => updateAppState({ claims }),
+      setError: (error) => updateAppState({ error }),
       addFeature,
       removeFeature,
       startBulkScreening,
@@ -211,9 +331,15 @@ const MainLayout = ({ user, onLogout }) => {
     setDarkMode(!darkMode);
     setIsDropdownOpen(false);
   };
-  const handleLogout = () => {
-    onLogout();
-    setIsDropdownOpen(false);
+  
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      onLogout();
+      setIsDropdownOpen(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   return (
@@ -225,7 +351,7 @@ const MainLayout = ({ user, onLogout }) => {
             <User size={18} />
           </div>
           <span className="user-name">
-            {user?.name || user?.email?.split('@')[0] || 'User'}
+            {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
           </span>
           <ChevronDown 
             size={16} 
@@ -282,7 +408,7 @@ const MainLayout = ({ user, onLogout }) => {
 
         <div className="sidebar-footer">
           {/* Processing status */}
-          {processingState.isProcessing && (
+          {appState.isProcessing && (
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ 
                 display: 'flex', 
@@ -296,11 +422,11 @@ const MainLayout = ({ user, onLogout }) => {
                   fontWeight: '600', 
                   color: '#2563eb' 
                 }}>
-                  Analyzing: {Math.round(processingState.progress)}%
+                  Analyzing: {Math.round(appState.progress)}%
                 </span>
               </div>
               <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {processingState.processedCount}/{processingState.claims.length} patents • {formatElapsedTime(processingState.elapsedTime)}
+                {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
               </div>
               <div style={{ 
                 width: '100%',
@@ -313,7 +439,7 @@ const MainLayout = ({ user, onLogout }) => {
                 <div style={{ 
                   height: '100%',
                   background: 'linear-gradient(to right, #3b82f6, #4f46e5)',
-                  width: `${processingState.progress}%`,
+                  width: `${appState.progress}%`,
                   transition: 'width 0.3s ease'
                 }} />
               </div>
