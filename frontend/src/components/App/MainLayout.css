@@ -1,6 +1,7 @@
 /* ===== GLOBAL STYLES & VARIABLES ===== */
 .dashboard-container {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background-color: #f9fafb;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -12,43 +13,71 @@ body.dark-mode .dashboard-container {
   color: #f9fafb; 
 }
 
-/* ===== USER DROPDOWN - FIXED TOP RIGHT ===== */
-.user-dropdown-container {
+/* ===== TOP NAVIGATION BAR ===== */
+.top-nav-bar {
+  height: 60px;
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 2rem;
   position: fixed;
-  top: 1rem;
-  right: 1rem;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 1100;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.user-dropdown-trigger {
+body.dark-mode .top-nav-bar {
+  background-color: #1f2937;
+  border-bottom-color: #374151;
+}
+
+.top-nav-content {
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background-color: white;
-  border: 1px solid #e5e7eb;
+  justify-content: space-between;
+  max-width: none;
+}
+
+.top-nav-left {
+  flex: 1;
+}
+
+.top-nav-right {
+  position: relative;
+}
+
+.user-profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 0.5rem;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   font-size: 0.875rem;
   font-weight: 500;
   color: #374151;
+  min-width: 180px;
 }
 
-.user-dropdown-trigger:hover { 
-  background-color: #f3f4f6; 
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); 
+.user-profile-trigger:hover { 
+  background-color: #f1f5f9; 
+  border-color: #cbd5e1;
 }
 
-body.dark-mode .user-dropdown-trigger { 
+body.dark-mode .user-profile-trigger { 
   background-color: #374151; 
   border-color: #4b5563; 
   color: #f9fafb; 
 }
 
-body.dark-mode .user-dropdown-trigger:hover { 
-  background-color: #4b5563; 
+body.dark-mode .user-profile-trigger:hover { 
+  background-color: #4b5563;
+  border-color: #6b7280; 
 }
 
 .user-avatar {
@@ -338,13 +367,24 @@ body.dark-mode .status-text {
   margin-left: 200px;
 }
 
+/* ===== MAIN LAYOUT WRAPPER ===== */
+.main-layout-wrapper {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
 /* ===== RESPONSIVE DESIGN ===== */
 @media (max-width: 768px) {
-  .user-dropdown-trigger { 
+  .user-profile-trigger { 
     padding: 0.5rem; 
+    min-width: 120px;
   }
   .user-name { 
-    display: none; 
+    font-size: 0.8rem; 
+  }
+  .top-nav-bar {
+    padding: 0 1rem;
   }
 }
 

@@ -342,116 +342,129 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   return (
     <div className="dashboard-container">
-      {/* User Dropdown - Fixed Top Right */}
-      <div className="user-dropdown-container" ref={dropdownRef}>
-        <button className="user-dropdown-trigger" onClick={toggleDropdown}>
-          <div className="user-avatar">
-            <User size={18} />
+      {/* Top Navigation Bar */}
+      <div className="top-nav-bar">
+        <div className="top-nav-content">
+          {/* Left side - can add breadcrumbs or page title later */}
+          <div className="top-nav-left">
+            {/* Empty for now */}
           </div>
-          <span className="user-name">
-            {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
-          </span>
-          <ChevronDown 
-            size={16} 
-            className={`dropdown-arrow ${isDropdownOpen ? 'rotated' : ''}`} 
-          />
-        </button>
 
-        {isDropdownOpen && (
-          <div className="user-dropdown-menu">
-            <button className="dropdown-item" onClick={toggleDarkMode}>
-              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-              <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+          {/* Right side - User Profile */}
+          <div className="top-nav-right" ref={dropdownRef}>
+            <button className="user-profile-trigger" onClick={toggleDropdown}>
+              <div className="user-avatar">
+                <User size={18} />
+              </div>
+              <span className="user-name">
+                {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+              </span>
+              <ChevronDown 
+                size={16} 
+                className={`dropdown-arrow ${isDropdownOpen ? 'rotated' : ''}`} 
+              />
             </button>
-            <div className="dropdown-divider"></div>
-            <button className="dropdown-item logout-item" onClick={handleLogout}>
-              <LogOut size={16} />
-              <span>Logout</span>
-            </button>
-          </div>
-        )}
-      </div>
 
-      {/* Sidebar - Always Visible */}
-      <div className="sidebar sidebar-fixed">
-        <div className="sidebar-header">
-          <h1 className="sidebar-title">FTOlyzer</h1>
-          <p className="sidebar-subtitle">Patent Analysis Platform</p>
-        </div>
-        
-        <nav className="sidebar-nav">
-          {navigationItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveModule(item.id)}
-                className={`nav-item ${activeModule === item.id ? 'nav-item-active' : ''}`}
-              >
-                <IconComponent size={20} className="nav-icon" />
-                <span className="nav-label">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="sidebar-footer">
-          {/* Processing status */}
-          {appState.isProcessing && (
-            <div style={{ marginBottom: '1rem' }}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem', 
-                marginBottom: '0.5rem' 
-              }}>
-                <Clock size={14} style={{ color: '#2563eb' }} />
-                <span style={{ 
-                  fontSize: '0.875rem', 
-                  fontWeight: '600', 
-                  color: '#2563eb' 
-                }}>
-                  Analyzing: {Math.round(appState.progress)}%
-                </span>
+            {isDropdownOpen && (
+              <div className="user-dropdown-menu">
+                <button className="dropdown-item" onClick={toggleDarkMode}>
+                  {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                  <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
+                <div className="dropdown-divider"></div>
+                <button className="dropdown-item logout-item" onClick={handleLogout}>
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
-              </div>
-              <div style={{ 
-                width: '100%',
-                height: '4px',
-                background: '#e5e7eb',
-                borderRadius: '2px',
-                overflow: 'hidden',
-                marginTop: '0.5rem'
-              }}>
-                <div style={{ 
-                  height: '100%',
-                  background: 'linear-gradient(to right, #3b82f6, #4f46e5)',
-                  width: `${appState.progress}%`,
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
-            </div>
-          )}
-
-          {/* System status */}
-          <div className="status-indicator">
-            <div className={`status-dot ${
-              backendStatus === 'connected' ? '' : 
-              backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
-            }`}></div>
-            <span className="status-text">
-              {backendStatus === 'connected' ? 'System Online' : 
-               backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
-            </span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Main Content Area - Always with sidebar margin */}
-      <div className="main-content main-content-with-sidebar">
-        {renderActiveModule()}
+      <div className="main-layout-wrapper">
+        {/* Sidebar - Always Visible */}
+        <div className="sidebar sidebar-fixed">
+          <div className="sidebar-header">
+            <h1 className="sidebar-title">FTOlyzer</h1>
+            <p className="sidebar-subtitle">Patent Analysis Platform</p>
+          </div>
+          
+          <nav className="sidebar-nav">
+            {navigationItems.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveModule(item.id)}
+                  className={`nav-item ${activeModule === item.id ? 'nav-item-active' : ''}`}
+                >
+                  <IconComponent size={20} className="nav-icon" />
+                  <span className="nav-label">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="sidebar-footer">
+            {/* Processing status */}
+            {appState.isProcessing && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  marginBottom: '0.5rem' 
+                }}>
+                  <Clock size={14} style={{ color: '#2563eb' }} />
+                  <span style={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: '600', 
+                    color: '#2563eb' 
+                  }}>
+                    Analyzing: {Math.round(appState.progress)}%
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
+                </div>
+                <div style={{ 
+                  width: '100%',
+                  height: '4px',
+                  background: '#e5e7eb',
+                  borderRadius: '2px',
+                  overflow: 'hidden',
+                  marginTop: '0.5rem'
+                }}>
+                  <div style={{ 
+                    height: '100%',
+                    background: 'linear-gradient(to right, #3b82f6, #4f46e5)',
+                    width: `${appState.progress}%`,
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+              </div>
+            )}
+
+            {/* System status */}
+            <div className="status-indicator">
+              <div className={`status-dot ${
+                backendStatus === 'connected' ? '' : 
+                backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
+              }`}></div>
+              <span className="status-text">
+                {backendStatus === 'connected' ? 'System Online' : 
+                 backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="main-content main-content-with-sidebar">
+          {renderActiveModule()}
+        </div>
       </div>
     </div>
   );
