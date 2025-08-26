@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import Login from '../Login/Login';
-import MainLayout from './MainLayout';
+import { supabase } from './lib/supabase';
+import Login from './components/Login/Login';
+import MainLayout from './components/App/MainLayout';
 
 function App() {
   const [session, setSession] = useState(null);

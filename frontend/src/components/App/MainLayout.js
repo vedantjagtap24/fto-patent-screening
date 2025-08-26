@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Filter, BarChart, Home as HomeIcon, Menu, X, User, Moon, Sun, LogOut, ChevronDown, Clock } from 'lucide-react';
-import { supabase, signOut } from '../lib/supabase';
+import { supabase, signOut } from '../../lib/supabase';
 import Home from './Home/Home';
 import Screening from './Screening/Screening';
 import Dashboard from './Dashboard/Dashboard';
