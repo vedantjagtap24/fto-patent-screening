@@ -447,26 +447,26 @@ body.dark-mode .main-content {
   overflow-y: auto;
 }
 
-/* Seamless integration - override child component styles */
-.main-content .content-wrapper .module-content {
-  padding: 2rem;
-  margin: 0;
-  max-width: none;
-  width: 100%;
+/* Override the module-content padding from child components */
+.content-wrapper .module-content {
+  padding: 2rem !important;
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
 }
 
-.main-content .content-wrapper .section {
-  margin: 0;
-  border-radius: 0;
-  background-color: white;
-  box-shadow: none;
-  border: none;
-  border-bottom: 1px solid #e5e7eb;
+/* Override section styles from child components */
+.content-wrapper .section {
+  margin: 0 !important;
+  border-radius: 1rem !important;
+  background-color: white !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid #e5e7eb !important;
 }
 
-body.dark-mode .main-content .content-wrapper .section {
-  background-color: #1f2937;
-  border-bottom-color: #374151;
+body.dark-mode .content-wrapper .section {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
