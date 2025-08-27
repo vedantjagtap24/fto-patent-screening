@@ -429,8 +429,7 @@ body.dark-mode .status-text {
 .main-content {
   grid-area: main;
   background-color: #f9fafb;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   padding: 0;
   margin: 0;
 }
@@ -444,18 +443,8 @@ body.dark-mode .main-content {
   height: 100%;
   padding: 0;
   margin: 0;
-  overflow-y: auto;
-  display: flex;
-  justify-content: center;
-}
-
-/* Remove any margins/padding from module content */
-.content-wrapper > * {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
   overflow: hidden;
+  display: block;
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
