@@ -434,7 +434,7 @@ body.dark-mode .dropdown-divider {
 /* ===== MAIN CONTENT ===== */
 .main-content {
   flex: 1;
-  padding: 2rem;
+  padding: 3rem;
   margin: 0;
   background-color: #f9fafb;
   overflow-y: auto;
