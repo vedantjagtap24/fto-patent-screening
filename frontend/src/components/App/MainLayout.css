@@ -431,6 +431,8 @@ body.dark-mode .status-text {
   background-color: #f9fafb;
   overflow-y: auto;
   overflow-x: hidden;
+  padding: 0;
+  margin: 0;
 }
 
 body.dark-mode .main-content {
@@ -441,12 +443,18 @@ body.dark-mode .main-content {
   width: 100%;
   height: 100%;
   padding: 0;
+  margin: 0;
   overflow-y: auto;
+  display: flex;
+  justify-content: center;
 }
 
-/* Ensure module content doesn't overflow */
+/* Remove any margins/padding from module content */
 .content-wrapper > * {
+  width: 100%;
   max-width: 100%;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
 }
 
