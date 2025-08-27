@@ -3,6 +3,24 @@ import { Eye, EyeOff, Mail } from 'lucide-react';
 import { signIn, signUp, supabase } from '../../lib/supabase';
 import './Login.css';
 
+const PasswordInput = ({ value, onChange, onKeyPress, placeholder, show, onToggle, minLength }) => (
+  <div className="password-input-container">
+    <input
+      type={show ? 'text' : 'password'}
+      value={value}
+      onChange={onChange}
+      onKeyPress={onKeyPress}
+      placeholder={placeholder}
+      className="form-input"
+      minLength={minLength}
+      required
+    />
+    <button type="button" onClick={onToggle} className="password-toggle">
+      {show ? <EyeOff size={20} /> : <Eye size={20} />}
+    </button>
+  </div>
+);
+
 const Login = ({ onLogin }) => {
   const [formState, setFormState] = useState({
     email: '', password: '', confirmPassword: '', showPassword: false, showConfirmPassword: false,
@@ -131,35 +149,17 @@ const Login = ({ onLogin }) => {
 
   const toggleMode = (mode) => {
     const modes = {
-      authMode: { isSignUp: !formState.isSignUp, isForgotPassword: false },
-      forgotPassword: { isForgotPassword: !formState.isForgotPassword, isSignUp: false },
-      backToLogin: { isForgotPassword: false, isSignUp: false }
+      authMode: { isSignUp: !formState.isSignUp, isForgotPassword: false, error: '', successMessage: '' },
+      forgotPassword: { isForgotPassword: !formState.isForgotPassword, isSignUp: false, error: '', successMessage: '' },
+      backToLogin: { isForgotPassword: false, isSignUp: false, error: '', successMessage: '' }
     };
-    updateFormState({ ...modes[mode], error: '', successMessage: '', email: '', password: '', confirmPassword: '' });
+    updateFormState(modes[mode]);
   };
 
   const isAuthDisabled = () => {
     const { isLoading, email, password, confirmPassword, isSignUp, isForgotPassword } = formState;
     return isLoading || (isForgotPassword ? !email : !email || !password || (isSignUp && !confirmPassword));
   };
-
-  const PasswordInput = ({ value, onChange, placeholder, show, onToggle, minLength }) => (
-    <div className="password-input-container">
-      <input
-        type={show ? 'text' : 'password'}
-        value={value}
-        onChange={onChange}
-        onKeyPress={handleKeyPress}
-        placeholder={placeholder}
-        className="form-input"
-        minLength={minLength}
-        required
-      />
-      <button type="button" onClick={onToggle} className="password-toggle">
-        {show ? <EyeOff size={20} /> : <Eye size={20} />}
-      </button>
-    </div>
-  );
 
   return (
     <div className="login-container">
@@ -200,6 +200,7 @@ const Login = ({ onLogin }) => {
               <PasswordInput
                 value={formState.password}
                 onChange={(e) => updateFormState({ password: e.target.value })}
+                onKeyPress={handleKeyPress}
                 placeholder={formState.isSignUp ? "Choose a password (min 6 characters)" : "Enter your password"}
                 show={formState.showPassword}
                 onToggle={() => updateFormState({ showPassword: !formState.showPassword })}
@@ -214,6 +215,7 @@ const Login = ({ onLogin }) => {
               <PasswordInput
                 value={formState.confirmPassword}
                 onChange={(e) => updateFormState({ confirmPassword: e.target.value })}
+                onKeyPress={handleKeyPress}
                 placeholder="Confirm your password"
                 show={formState.showConfirmPassword}
                 onToggle={() => updateFormState({ showConfirmPassword: !formState.showConfirmPassword })}
