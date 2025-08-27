@@ -5,7 +5,6 @@ import './Home.css';
 const Home = ({ onNavigate }) => {
   const [activeModal, setActiveModal] = useState(null);
 
-  // Modal content data (consolidated)
   const modalData = {
     objective: {
       title: "Objective",
@@ -103,11 +102,9 @@ const Home = ({ onNavigate }) => {
     }
   };
 
-  // Modal handlers (consolidated)
   const openModal = (cardType) => setActiveModal(cardType);
   const closeModal = () => setActiveModal(null);
 
-  // Handle escape key and body scroll
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape') closeModal();
@@ -124,7 +121,6 @@ const Home = ({ onNavigate }) => {
     };
   }, [activeModal]);
 
-  // Overview cards data
   const overviewCards = [
     {
       id: 'objective',
@@ -164,24 +160,6 @@ const Home = ({ onNavigate }) => {
     }
   ];
 
-  // Action cards data
-  const actionCards = [
-    {
-      id: 'screening',
-      icon: <Zap size={24} />,
-      label: 'Start Patent Screening',
-      description: 'Upload and analyze patent claims',
-      className: 'screening-action'
-    },
-    {
-      id: 'dashboard',
-      icon: <Target size={24} />,
-      label: 'View Dashboard',
-      description: 'See analytics and insights',
-      className: 'dashboard-action'
-    }
-  ];
-
   return (
     <>
       <div className="module-content">
@@ -191,7 +169,6 @@ const Home = ({ onNavigate }) => {
             <p className="home-subtitle">AI-powered patent analysis platform for Freedom to Operate studies</p>
           </div>
 
-          {/* Overview Grid */}
           <div className="overview-grid">
             {overviewCards.map((card) => (
               <div 
@@ -208,7 +185,6 @@ const Home = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Modal */}
       {activeModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>

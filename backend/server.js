@@ -9,270 +9,178 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || process.env.RAILWAY_PORT || 3001;
 
-// Initialize OpenAI
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Initialize Supabase (using service role key for server-side operations)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
+  { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// Middleware
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 
-// Authentication middleware
 const authenticateUser = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({ error: 'No authorization token provided' });
-    }
+    if (!token) return res.status(401).json({ error: 'No authorization token provided' });
 
     const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error || !user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
+    if (error || !user) return res.status(401).json({ error: 'Invalid or expired token' });
 
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
     res.status(401).json({ error: 'Authentication failed' });
   }
 };
 
-// Static file serving (consolidated path checking)
 const buildPaths = [
   path.join(__dirname, 'public'),
   path.join(__dirname, '../frontend/build'),
   path.join(process.cwd(), 'frontend/build'),
   '/app/frontend/build'
 ];
-
 const buildPath = buildPaths.find(p => fs.existsSync(p));
 if (buildPath) {
   app.use(express.static(buildPath));
-  console.log('Static files served from:', buildPath);
 }
 
-// Utility functions
 const findPublicationNumber = (claim) => {
-  const possibleColumns = [
-    'Publication Number', 'Publication', 'Pub Number', 'Patent Number',
-    'Patent Publication', 'Publication No', 'Pub No', 'Patent No',
-    'PublicationNumber', 'PatentNumber'
-  ];
+  const columns = ['Publication Number', 'Publication', 'Pub Number', 'Patent Number', 'Patent Publication', 'Publication No', 'Pub No', 'Patent No', 'PublicationNumber', 'PatentNumber'];
   
-  // Try exact matches first
-  for (const col of possibleColumns) {
+  for (const col of columns) {
     if (claim[col] && claim[col] !== 'N/A' && claim[col] !== '') {
       return claim[col];
     }
   }
   
-  // Try partial matches
-  const columns = Object.keys(claim);
-  for (const column of columns) {
-    const lowerColumn = column.toLowerCase();
-    if ((lowerColumn.includes('publication') || 
-         lowerColumn.includes('patent') || 
-         lowerColumn.includes('pub')) &&
-        claim[column] && 
-        claim[column] !== 'N/A' && 
-        claim[column] !== '') {
-      return claim[column];
+  const keys = Object.keys(claim);
+  for (const key of keys) {
+    const lowerKey = key.toLowerCase();
+    if ((lowerKey.includes('publication') || lowerKey.includes('patent') || lowerKey.includes('pub')) &&
+        claim[key] && claim[key] !== 'N/A' && claim[key] !== '') {
+      return claim[key];
     }
   }
   
   return 'N/A';
 };
 
-// API Routes
+const dbOperation = async (operation) => {
+  try {
+    const result = await operation();
+    return { success: true, data: result.data, error: result.error };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 app.get('/health', (req, res) => {
-  try {
-    res.status(200).json({ 
-      status: 'Backend is running!',
-      timestamp: new Date().toISOString(),
-      port: port,
-      env: process.env.NODE_ENV || 'development',
-      openaiConfigured: !!process.env.OPENAI_API_KEY,
-      supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
-      buildPathFound: !!buildPath,
-      buildPath: buildPath || 'Not found'
-    });
-  } catch (error) {
-    console.error('Error in health check:', error);
-    res.status(500).json({ error: 'Health check failed', message: error.message });
-  }
+  res.status(200).json({ 
+    status: 'Backend is running',
+    timestamp: new Date().toISOString(),
+    port,
+    env: process.env.NODE_ENV || 'development',
+    openaiConfigured: !!process.env.OPENAI_API_KEY,
+    supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+    buildPath: buildPath || 'Not found'
+  });
 });
 
-// Create or get current project
-app.post('/api/projects', authenticateUser, async (req, res) => {
-  try {
+const projectRoutes = {
+  create: async (req, res) => {
     const { name, description } = req.body;
+    const result = await dbOperation(
+      () => supabase.from('projects').insert([{
+        user_id: req.user.id,
+        name: name || 'New Analysis Project',
+        description: description || '',
+        status: 'draft'
+      }]).select().single()
+    );
     
-    const { data, error } = await supabase
-      .from('projects')
-      .insert([
-        {
-          user_id: req.user.id,
-          name: name || 'New Analysis Project',
-          description: description || '',
-          status: 'draft'
-        }
-      ])
-      .select()
-      .single();
+    result.success ? res.json({ success: true, project: result.data }) : 
+                    res.status(500).json({ error: 'Failed to create project', message: result.error });
+  },
 
-    if (error) throw error;
-
-    res.json({ success: true, project: data });
-  } catch (error) {
-    console.error('Error creating project:', error);
-    res.status(500).json({ error: 'Failed to create project', message: error.message });
+  list: async (req, res) => {
+    const result = await dbOperation(
+      () => supabase.from('projects').select('*').eq('user_id', req.user.id).order('updated_at', { ascending: false })
+    );
+    
+    result.success ? res.json({ success: true, projects: result.data }) :
+                    res.status(500).json({ error: 'Failed to fetch projects', message: result.error });
   }
-});
+};
 
-// Get user's projects
-app.get('/api/projects', authenticateUser, async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .order('updated_at', { ascending: false });
-
-    if (error) throw error;
-
-    res.json({ success: true, projects: data });
-  } catch (error) {
-    console.error('Error fetching projects:', error);
-    res.status(500).json({ error: 'Failed to fetch projects', message: error.message });
-  }
-});
-
-// Save features for a project
-app.post('/api/projects/:projectId/features', authenticateUser, async (req, res) => {
-  try {
+const featureRoutes = {
+  save: async (req, res) => {
     const { projectId } = req.params;
     const { features } = req.body;
 
-    // First, delete existing features
-    await supabase
-      .from('features')
-      .delete()
-      .eq('project_id', projectId);
+    await supabase.from('features').delete().eq('project_id', projectId);
+    
+    const result = await dbOperation(
+      () => supabase.from('features').insert(
+        features.map((feature, index) => ({
+          project_id: projectId,
+          name: feature,
+          order_index: index
+        }))
+      ).select()
+    );
 
-    // Insert new features
-    const featureData = features.map((feature, index) => ({
-      project_id: projectId,
-      name: feature,
-      order_index: index
-    }));
+    result.success ? res.json({ success: true, features: result.data }) :
+                    res.status(500).json({ error: 'Failed to save features', message: result.error });
+  },
 
-    const { data, error } = await supabase
-      .from('features')
-      .insert(featureData)
-      .select();
-
-    if (error) throw error;
-
-    res.json({ success: true, features: data });
-  } catch (error) {
-    console.error('Error saving features:', error);
-    res.status(500).json({ error: 'Failed to save features', message: error.message });
-  }
-});
-
-// Get features for a project
-app.get('/api/projects/:projectId/features', authenticateUser, async (req, res) => {
-  try {
+  get: async (req, res) => {
     const { projectId } = req.params;
+    const result = await dbOperation(
+      () => supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true })
+    );
 
-    const { data, error } = await supabase
-      .from('features')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('order_index', { ascending: true });
-
-    if (error) throw error;
-
-    res.json({ success: true, features: data });
-  } catch (error) {
-    console.error('Error fetching features:', error);
-    res.status(500).json({ error: 'Failed to fetch features', message: error.message });
+    result.success ? res.json({ success: true, features: result.data }) :
+                    res.status(500).json({ error: 'Failed to fetch features', message: result.error });
   }
-});
+};
 
-// Save patent claims for a project
-app.post('/api/projects/:projectId/claims', authenticateUser, async (req, res) => {
-  try {
+const claimRoutes = {
+  save: async (req, res) => {
     const { projectId } = req.params;
     const { claims } = req.body;
 
-    // First, delete existing claims
-    await supabase
-      .from('patent_claims')
-      .delete()
-      .eq('project_id', projectId);
+    await supabase.from('patent_claims').delete().eq('project_id', projectId);
+    
+    const result = await dbOperation(
+      () => supabase.from('patent_claims').insert(
+        claims.map((claim, index) => ({
+          project_id: projectId,
+          claim_number: claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (index + 1),
+          publication_number: findPublicationNumber(claim),
+          claims_text: claim.Claims || claim.claims || claim.Claim || claim.claim || '',
+          raw_data: claim
+        }))
+      ).select()
+    );
 
-    // Insert new claims
-    const claimData = claims.map((claim, index) => ({
-      project_id: projectId,
-      claim_number: claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (index + 1),
-      publication_number: findPublicationNumber(claim),
-      claims_text: claim.Claims || claim.claims || claim.Claim || claim.claim || '',
-      raw_data: claim
-    }));
+    result.success ? res.json({ success: true, claims: result.data }) :
+                    res.status(500).json({ error: 'Failed to save claims', message: result.error });
+  },
 
-    const { data, error } = await supabase
-      .from('patent_claims')
-      .insert(claimData)
-      .select();
-
-    if (error) throw error;
-
-    res.json({ success: true, claims: data });
-  } catch (error) {
-    console.error('Error saving claims:', error);
-    res.status(500).json({ error: 'Failed to save claims', message: error.message });
-  }
-});
-
-// Get claims for a project
-app.get('/api/projects/:projectId/claims', authenticateUser, async (req, res) => {
-  try {
+  get: async (req, res) => {
     const { projectId } = req.params;
+    const result = await dbOperation(
+      () => supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
+    );
 
-    const { data, error } = await supabase
-      .from('patent_claims')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('claim_number', { ascending: true });
-
-    if (error) throw error;
-
-    res.json({ success: true, claims: data });
-  } catch (error) {
-    console.error('Error fetching claims:', error);
-    res.status(500).json({ error: 'Failed to fetch claims', message: error.message });
+    result.success ? res.json({ success: true, claims: result.data }) :
+                    res.status(500).json({ error: 'Failed to fetch claims', message: result.error });
   }
-});
+};
 
-// Single claim analysis function
 async function analyzeSingleClaim(claim, claimNumber, features) {
   const featureList = features.map((feature, index) => `${index + 1}. ${feature}`).join('\n');
-
   const prompt = `Analyze the following patent claim and determine if it contains the specified features.
 
 FEATURES TO DETECT:
@@ -295,262 +203,197 @@ ${features.map((feature, index) => `  "feature_${index + 1}": {
 IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not the full text content.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1',
+    model: 'gpt-4',
     messages: [
-      {
-        role: 'system',
-        content: 'You are a patent analysis expert. Always respond with valid JSON. For relevant_claims, provide only claim numbers, not full text.'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
+      { role: 'system', content: 'You are a patent analysis expert. Always respond with valid JSON. For relevant_claims, provide only claim numbers, not full text.' },
+      { role: 'user', content: prompt }
     ],
     max_tokens: 2000,
     temperature: 0.1
   });
 
-  const content = response.choices[0].message.content.trim();
-  const analysis = JSON.parse(content);
-  
-  return analysis;
+  return JSON.parse(response.choices[0].message.content.trim());
 }
 
-// Save analysis results to database
 async function saveAnalysisResults(projectId, claimId, features, analysisResult) {
-  try {
-    // Calculate rank and feature count
-    const featureCount = Object.keys(analysisResult).filter(key => 
-      key.startsWith('feature_') && analysisResult[key]?.present === true
-    ).length;
-    
-    let rank = null;
-    if (featureCount === features.length) rank = 1;
-    else if (featureCount >= Math.ceil(features.length * 0.75)) rank = 2;
-    else if (featureCount >= Math.ceil(features.length * 0.5)) rank = 3;
-    else if (featureCount >= 1) rank = 4;
+  const featureCount = Object.keys(analysisResult).filter(key => 
+    key.startsWith('feature_') && analysisResult[key]?.present === true
+  ).length;
+  
+  let rank = null;
+  if (featureCount === features.length) rank = 1;
+  else if (featureCount >= Math.ceil(features.length * 0.75)) rank = 2;
+  else if (featureCount >= Math.ceil(features.length * 0.5)) rank = 3;
+  else if (featureCount >= 1) rank = 4;
 
-    // Save analysis summary
-    const { error: summaryError } = await supabase
-      .from('analysis_summary')
-      .insert([{
-        project_id: projectId,
-        claim_id: claimId,
-        rank: rank,
-        feature_count: featureCount,
-        total_features: features.length,
-        detailed_analysis: analysisResult
-      }]);
+  const { error } = await supabase.from('analysis_summary').insert([{
+    project_id: projectId,
+    claim_id: claimId,
+    rank,
+    feature_count: featureCount,
+    total_features: features.length,
+    detailed_analysis: analysisResult
+  }]);
 
-    if (summaryError) throw summaryError;
-
-    return { rank, featureCount };
-  } catch (error) {
-    console.error('Error saving analysis results:', error);
-    throw error;
-  }
+  if (error) throw error;
+  return { rank, featureCount };
 }
 
-// Main analysis endpoint with database integration
-app.post('/api/projects/:projectId/analyze', authenticateUser, async (req, res) => {
-  try {
+const analysisRoutes = {
+  analyze: async (req, res) => {
     const { projectId } = req.params;
 
-    // Update project status to processing
-    await supabase
-      .from('projects')
-      .update({ status: 'processing' })
-      .eq('id', projectId);
+    try {
+      await supabase.from('projects').update({ status: 'processing' }).eq('id', projectId);
 
-    // Get features and claims from database
-    const { data: features, error: featuresError } = await supabase
-      .from('features')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('order_index', { ascending: true });
+      const [featuresResult, claimsResult] = await Promise.all([
+        supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true }),
+        supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
+      ]);
 
-    if (featuresError) throw featuresError;
+      if (featuresResult.error || claimsResult.error) throw new Error('Failed to fetch project data');
 
-    const { data: claims, error: claimsError } = await supabase
-      .from('patent_claims')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('claim_number', { ascending: true });
+      const features = featuresResult.data;
+      const claims = claimsResult.data;
+      const featureNames = features.map(f => f.name);
 
-    if (claimsError) throw claimsError;
-
-    if (!features.length || !claims.length) {
-      return res.status(400).json({ error: 'No features or claims found for this project' });
-    }
-
-    const featureNames = features.map(f => f.name);
-    console.log(`Starting analysis of ${claims.length} claims with ${features.length} features`);
-    
-    const results = [];
-    const batchSize = 10;
-    const totalClaims = claims.length;
-    
-    // Process in batches
-    for (let i = 0; i < totalClaims; i += batchSize) {
-      const batch = claims.slice(i, i + batchSize);
-      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(totalClaims/batchSize)}`);
-      
-      const batchPromises = batch.map(async (claim) => {
-        try {
-          const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
-          const { rank, featureCount } = await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
-          
-          const result = {
-            claimNumber: claim.claim_number,
-            publicationNumber: claim.publication_number,
-            features: featureNames,
-            detailed_analysis: analysis,
-            rank,
-            featureCount
-          };
-
-          // Add feature flags to result
-          featureNames.forEach((_, index) => {
-            const key = `feature_${index + 1}`;
-            result[key] = analysis[key]?.present || false;
-          });
-
-          return result;
-        } catch (error) {
-          console.error(`Error processing claim ${claim.claim_number}:`, error);
-          
-          // Create error result
-          const errorResult = {
-            claimNumber: claim.claim_number,
-            publicationNumber: claim.publication_number,
-            features: featureNames,
-            detailed_analysis: {},
-            rank: null,
-            featureCount: 0
-          };
-
-          featureNames.forEach((feature, index) => {
-            const key = `feature_${index + 1}`;
-            errorResult[key] = false;
-            errorResult.detailed_analysis[key] = {
-              feature_name: feature,
-              present: false,
-              confidence: "Low",
-              reasoning: "Analysis failed - unable to process claim",
-              relevant_claims: "N/A"
-            };
-          });
-
-          return errorResult;
-        }
-      });
-      
-      const batchResults = await Promise.all(batchPromises);
-      results.push(...batchResults);
-      
-      // Rate limiting between batches
-      if (i + batchSize < totalClaims) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!features.length || !claims.length) {
+        return res.status(400).json({ error: 'No features or claims found for this project' });
       }
-    }
-    
-    // Update project status to completed
-    await supabase
-      .from('projects')
-      .update({ 
-        status: 'completed',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', projectId);
+      
+      const results = [];
+      const batchSize = 10;
+      
+      for (let i = 0; i < claims.length; i += batchSize) {
+        const batch = claims.slice(i, i + batchSize);
+        
+        const batchPromises = batch.map(async (claim) => {
+          try {
+            const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
+            const { rank, featureCount } = await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
+            
+            const result = {
+              claimNumber: claim.claim_number,
+              publicationNumber: claim.publication_number,
+              features: featureNames,
+              detailed_analysis: analysis,
+              rank,
+              featureCount
+            };
 
-    console.log(`Analysis completed. Processed ${results.length} claims.`);
-    
-    res.json({
-      success: true,
-      totalProcessed: results.length,
-      results: results
-    });
+            featureNames.forEach((_, index) => {
+              const key = `feature_${index + 1}`;
+              result[key] = analysis[key]?.present || false;
+            });
 
-  } catch (error) {
-    console.error('Error in analysis:', error);
-    
-    // Update project status to error
-    if (req.params.projectId) {
-      await supabase
-        .from('projects')
-        .update({ status: 'error' })
-        .eq('id', req.params.projectId);
-    }
-    
-    res.status(500).json({
-      success: false,
-      error: 'Failed to process claims',
-      message: error.message,
-      results: []
-    });
-  }
-});
+            return result;
+          } catch (error) {
+            const errorResult = {
+              claimNumber: claim.claim_number,
+              publicationNumber: claim.publication_number,
+              features: featureNames,
+              detailed_analysis: {},
+              rank: null,
+              featureCount: 0
+            };
 
-// Get analysis results for a project
-app.get('/api/projects/:projectId/results', authenticateUser, async (req, res) => {
-  try {
-    const { projectId } = req.params;
+            featureNames.forEach((feature, index) => {
+              const key = `feature_${index + 1}`;
+              errorResult[key] = false;
+              errorResult.detailed_analysis[key] = {
+                feature_name: feature,
+                present: false,
+                confidence: "Low",
+                reasoning: "Analysis failed - unable to process claim",
+                relevant_claims: "N/A"
+              };
+            });
 
-    const { data: results, error } = await supabase
-      .from('analysis_summary')
-      .select(`
-        *,
-        patent_claims (
-          claim_number,
-          publication_number
-        )
-      `)
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-
-    // Get features for this project
-    const { data: features } = await supabase
-      .from('features')
-      .select('name')
-      .eq('project_id', projectId)
-      .order('order_index', { ascending: true });
-
-    const featureNames = features?.map(f => f.name) || [];
-
-    // Format results to match frontend expectations
-    const formattedResults = results.map(result => {
-      const formatted = {
-        claimNumber: result.patent_claims.claim_number,
-        publicationNumber: result.patent_claims.publication_number,
-        features: featureNames,
-        detailed_analysis: result.detailed_analysis,
-        rank: result.rank,
-        featureCount: result.feature_count
-      };
-
-      // Add feature flags
-      if (result.detailed_analysis) {
-        Object.keys(result.detailed_analysis).forEach(key => {
-          if (key.startsWith('feature_')) {
-            formatted[key] = result.detailed_analysis[key]?.present || false;
+            return errorResult;
           }
         });
+        
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+        
+        if (i + batchSize < claims.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
+      
+      await supabase.from('projects').update({ 
+        status: 'completed',
+        updated_at: new Date().toISOString()
+      }).eq('id', projectId);
+      
+      res.json({
+        success: true,
+        totalProcessed: results.length,
+        results: results
+      });
 
-      return formatted;
-    });
+    } catch (error) {
+      await supabase.from('projects').update({ status: 'error' }).eq('id', projectId);
+      
+      res.status(500).json({
+        success: false,
+        error: 'Failed to process claims',
+        message: error.message,
+        results: []
+      });
+    }
+  },
 
-    res.json({ success: true, results: formattedResults, features: featureNames });
-  } catch (error) {
-    console.error('Error fetching results:', error);
-    res.status(500).json({ error: 'Failed to fetch results', message: error.message });
+  getResults: async (req, res) => {
+    const { projectId } = req.params;
+
+    try {
+      const [resultsData, featuresData] = await Promise.all([
+        supabase.from('analysis_summary').select(`*, patent_claims (claim_number, publication_number)`).eq('project_id', projectId).order('created_at', { ascending: true }),
+        supabase.from('features').select('name').eq('project_id', projectId).order('order_index', { ascending: true })
+      ]);
+
+      if (resultsData.error || featuresData.error) throw new Error('Failed to fetch results');
+
+      const featureNames = featuresData.data?.map(f => f.name) || [];
+      const formattedResults = resultsData.data.map(result => {
+        const formatted = {
+          claimNumber: result.patent_claims.claim_number,
+          publicationNumber: result.patent_claims.publication_number,
+          features: featureNames,
+          detailed_analysis: result.detailed_analysis,
+          rank: result.rank,
+          featureCount: result.feature_count
+        };
+
+        if (result.detailed_analysis) {
+          Object.keys(result.detailed_analysis).forEach(key => {
+            if (key.startsWith('feature_')) {
+              formatted[key] = result.detailed_analysis[key]?.present || false;
+            }
+          });
+        }
+
+        return formatted;
+      });
+
+      res.json({ success: true, results: formattedResults, features: featureNames });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch results', message: error.message });
+    }
   }
-});
+};
 
-// Temporary backward compatibility endpoint
-app.post('/analyze-all-claims', async (req, res) => {
+app.post('/api/projects', authenticateUser, projectRoutes.create);
+app.get('/api/projects', authenticateUser, projectRoutes.list);
+app.post('/api/projects/:projectId/features', authenticateUser, featureRoutes.save);
+app.get('/api/projects/:projectId/features', authenticateUser, featureRoutes.get);
+app.post('/api/projects/:projectId/claims', authenticateUser, claimRoutes.save);
+app.get('/api/projects/:projectId/claims', authenticateUser, claimRoutes.get);
+app.post('/api/projects/:projectId/analyze', authenticateUser, analysisRoutes.analyze);
+app.get('/api/projects/:projectId/results', authenticateUser, analysisRoutes.getResults);
+
+app.post('/analyze-all-claims', (req, res) => {
   res.status(400).json({
     success: false,
     error: 'Please update to the new authentication system',
@@ -559,13 +402,10 @@ app.post('/analyze-all-claims', async (req, res) => {
   });
 });
 
-// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-// Serve React app for all other routes with fallback
 app.get('*', (req, res) => {
   const indexPaths = [
     path.join(__dirname, 'public/index.html'),
@@ -579,81 +419,27 @@ app.get('*', (req, res) => {
   if (indexPath) {
     res.sendFile(indexPath);
   } else {
-    // Fallback for missing build
     res.status(200).send(`
       <!DOCTYPE html>
       <html>
-        <head>
-          <title>FTO Patent Screening - Backend Running</title>
-          <style>
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-              max-width: 800px; 
-              margin: 0 auto; 
-              padding: 2rem; 
-              background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-              color: white;
-              min-height: 100vh;
-            }
-            .container { 
-              background: rgba(255, 255, 255, 0.1); 
-              padding: 2rem; 
-              border-radius: 12px; 
-              backdrop-filter: blur(10px);
-            }
-            h1 { color: #93c5fd; }
-            .status { color: #34d399; font-weight: bold; }
-            .api-list { background: rgba(255, 255, 255, 0.05); padding: 1rem; border-radius: 8px; }
-            .api-endpoint { margin: 0.5rem 0; font-family: monospace; }
-          </style>
-        </head>
+        <head><title>FTO Patent Screening - Backend Running</title></head>
         <body>
-          <div class="container">
-            <h1>FTO Patent Screening Backend</h1>
-            <p class="status">✅ Backend server is running successfully!</p>
-            
-            <h3>Issue: Frontend build not found</h3>
-            <p>The React frontend build files are missing. This usually happens when:</p>
-            <ul>
-              <li>Frontend dependencies weren't installed properly</li>
-              <li>The build process failed during deployment</li>
-              <li>Build files are in a different location</li>
-            </ul>
-            
-            <h3>Available API Endpoints:</h3>
-            <div class="api-list">
-              <div class="api-endpoint">GET /health - Backend health check</div>
-              <div class="api-endpoint">POST /api/projects - Create project (requires auth)</div>
-              <div class="api-endpoint">GET /api/projects - List projects (requires auth)</div>
-              <div class="api-endpoint">POST /api/projects/:id/analyze - Run analysis (requires auth)</div>
-            </div>
-            
-            <h3>System Status:</h3>
-            <ul>
-              <li>OpenAI API: ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Missing'}</li>
-              <li>Supabase: ${process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Configured' : '❌ Missing'}</li>
-              <li>Build Path: ${buildPath ? '✅ Found at ' + buildPath : '❌ Not found'}</li>
-            </ul>
-            
-            <p><strong>Next Steps:</strong></p>
-            <ol>
-              <li>Check Railway deployment logs for build errors</li>
-              <li>Ensure frontend dependencies are installed</li>
-              <li>Verify build process completes successfully</li>
-            </ol>
-          </div>
+          <h1>FTO Patent Screening Backend</h1>
+          <p>Backend server is running successfully</p>
+          <h3>Issue: Frontend build not found</h3>
+          <p>The React frontend build files are missing.</p>
+          <h3>System Status:</h3>
+          <ul>
+            <li>OpenAI API: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing'}</li>
+            <li>Supabase: ${process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Configured' : 'Missing'}</li>
+            <li>Build Path: ${buildPath ? 'Found at ' + buildPath : 'Not found'}</li>
+          </ul>
         </body>
       </html>
     `);
   }
 });
 
-// Start server
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running at http://0.0.0.0:${port}`);
-  console.log('OpenAI API Key present:', !!process.env.OPENAI_API_KEY);
-  console.log('Supabase configured:', !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY));
-  console.log('Build path found:', !!buildPath);
-  if (buildPath) console.log('Serving static files from:', buildPath);
-  console.log('Server started successfully!');
+  // Server started
 });
