@@ -381,72 +381,69 @@ const MainLayout = ({ user, session, onLogout }) => {
         </div>
       </div>
 
-      {/* Content Area - Sidebar + Main */}
-      <div className="content-area">
-        {/* Sidebar */}
-        <div className="sidebar">
-          <div className="sidebar-header">
-            <h1 className="sidebar-title">FTOlyzer</h1>
-            <p className="sidebar-subtitle">Patent Analysis Platform</p>
-          </div>
-          
-          <nav className="sidebar-nav">
-            {navigationItems.map((item) => {
-              const IconComponent = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveModule(item.id)}
-                  className={`nav-item ${activeModule === item.id ? 'nav-item-active' : ''}`}
-                >
-                  <IconComponent size={20} className="nav-icon" />
-                  <span className="nav-label">{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+      {/* Sidebar */}
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <h1 className="sidebar-title">FTOlyzer</h1>
+          <p className="sidebar-subtitle">Patent Analysis Platform</p>
+        </div>
+        
+        <nav className="sidebar-nav">
+          {navigationItems.map((item) => {
+            const IconComponent = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveModule(item.id)}
+                className={`nav-item ${activeModule === item.id ? 'nav-item-active' : ''}`}
+              >
+                <IconComponent size={20} className="nav-icon" />
+                <span className="nav-label">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-          <div className="sidebar-footer">
-            {/* Processing status */}
-            {appState.isProcessing && (
-              <div className="processing-status">
-                <div className="processing-header">
-                  <Clock size={14} />
-                  <span className="processing-text">
-                    Analyzing: {Math.round(appState.progress)}%
-                  </span>
-                </div>
-                <div className="processing-details">
-                  {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
-                </div>
-                <div className="processing-bar">
-                  <div 
-                    className="processing-fill" 
-                    style={{ width: `${appState.progress}%` }}
-                  />
-                </div>
+        <div className="sidebar-footer">
+          {/* Processing status */}
+          {appState.isProcessing && (
+            <div className="processing-status">
+              <div className="processing-header">
+                <Clock size={14} />
+                <span className="processing-text">
+                  Analyzing: {Math.round(appState.progress)}%
+                </span>
               </div>
-            )}
-
-            {/* System status */}
-            <div className="status-indicator">
-              <div className={`status-dot ${
-                backendStatus === 'connected' ? '' : 
-                backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
-              }`}></div>
-              <span className="status-text">
-                {backendStatus === 'connected' ? 'System Online' : 
-                 backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
-              </span>
+              <div className="processing-details">
+                {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
+              </div>
+              <div className="processing-bar">
+                <div 
+                  className="processing-fill" 
+                  style={{ width: `${appState.progress}%` }}
+                />
+              </div>
             </div>
+          )}
+
+          {/* System status */}
+          <div className="status-indicator">
+            <div className={`status-dot ${
+              backendStatus === 'connected' ? '' : 
+              backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
+            }`}></div>
+            <span className="status-text">
+              {backendStatus === 'connected' ? 'System Online' : 
+               backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
+            </span>
           </div>
         </div>
+      </div>
 
-        {/* Main Content */}
-        <div className="main-content">
-          <div className="content-wrapper">
-            {renderActiveModule()}
-          </div>
+      {/* Main Content */}
+      <div className="main-content">
+        <div className="content-wrapper">
+          {renderActiveModule()}
         </div>
       </div>
     </div>
