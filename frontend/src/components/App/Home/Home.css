@@ -55,13 +55,21 @@ body.dark-mode .home-subtitle { color: #9ca3af; }
 }
 
 .overview-card {
-  background: transparent;
+  background: white;
   border-radius: 1rem;
   padding: 2rem;
-  border: none;
+  border: 1px solid #e5e7eb;
   transition: all 0.3s ease;
-  box-shadow: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
+
+.overview-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  border-color: #2563eb;
+}
+
+body.dark-mode .overview-card { background: #1f2937; border-color: #374151; }
 
 .overview-card:hover {
   transform: translateY(-4px);
