@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lightbulb, Target, Zap, Layers, Search, List, X, ArrowRight, TrendingUp, FileText, Users } from 'lucide-react';
+import { Lightbulb, Target, Zap, Layers, Search, List, X } from 'lucide-react';
 import './Home.css';
 
 const Home = ({ onNavigate }) => {
@@ -182,87 +182,46 @@ const Home = ({ onNavigate }) => {
     }
   ];
 
-  // Metrics data for admin dashboard feel
-  const metrics = [
-    { value: '2,845', label: 'Patents Analyzed', icon: <FileText size={20} />, color: '#2563eb' },
-    { value: '156', label: 'Active Projects', icon: <TrendingUp size={20} />, color: '#059669' },
-    { value: '89%', label: 'Success Rate', icon: <Target size={20} />, color: '#7c3aed' },
-    { value: '24', label: 'Team Members', icon: <Users size={20} />, color: '#dc2626' }
-  ];
-
   return (
     <>
-      <div className="admin-layout">
-        {/* Header */}
-        <div className="admin-header">
-          <h1 className="admin-title">Welcome to FTOlyzer</h1>
-          <p className="admin-subtitle">AI-powered patent analysis platform for Freedom to Operate studies</p>
-        </div>
+      <div className="module-content">
+        <div className="section">
+          <div className="home-header">
+            <h1 className="home-title">Welcome to FTOlyzer</h1>
+            <p className="home-subtitle">AI-powered patent analysis platform for Freedom to Operate studies</p>
+          </div>
 
-        {/* Metrics Bar */}
-        <div className="admin-metrics-bar">
-          {metrics.map((metric, index) => (
-            <div key={index} className="metric-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: metric.color }}>{metric.icon}</span>
-                <div className="metric-value" style={{ color: metric.color }}>
-                  {metric.value}
-                </div>
+          {/* Overview Grid */}
+          <div className="overview-grid">
+            {overviewCards.map((card) => (
+              <div 
+                key={card.id}
+                className="overview-card clickable-card" 
+                onClick={() => openModal(card.id)}
+              >
+                <div className="card-icon">{card.icon}</div>
+                <h3 className="card-title">{card.title}</h3>
+                <p className="card-description">{card.description}</p>
               </div>
-              <div className="metric-label">{metric.label}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        {/* Main Content */}
-        <div className="admin-content">
           {/* Quick Actions */}
-          <div className="admin-section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 className="section-title">Quick Actions</h2>
-              <button className="view-all-btn">
-                View All <ArrowRight size={16} />
-              </button>
-            </div>
-            <div className="quick-actions-grid">
+          <div className="quick-actions">
+            <h2 className="actions-title">Get Started</h2>
+            <div className="actions-grid">
               {actionCards.map((action) => (
                 <button 
                   key={action.id}
-                  className={`action-card admin-action ${action.className}`}
+                  className={`action-card ${action.className}`}
                   onClick={() => onNavigate && onNavigate(action.id)}
                 >
-                  <div className="action-icon">{action.icon}</div>
+                  {action.icon}
                   <div className="action-content">
                     <span className="action-label">{action.label}</span>
                     <p className="action-description">{action.description}</p>
                   </div>
-                  <ArrowRight size={20} className="action-arrow" />
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Overview Grid */}
-          <div className="admin-section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 className="section-title">Platform Overview</h2>
-            </div>
-            <div className="overview-grid admin-overview">
-              {overviewCards.map((card) => (
-                <div 
-                  key={card.id}
-                  className="overview-card admin-card clickable-card" 
-                  onClick={() => openModal(card.id)}
-                >
-                  <div className="card-header">
-                    <div className="card-icon">{card.icon}</div>
-                    <h3 className="card-title">{card.title}</h3>
-                  </div>
-                  <p className="card-description">{card.description}</p>
-                  <div className="card-footer">
-                    <span className="learn-more">Learn more <ArrowRight size={16} /></span>
-                  </div>
-                </div>
               ))}
             </div>
           </div>
