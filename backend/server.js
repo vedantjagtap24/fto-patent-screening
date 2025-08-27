@@ -203,7 +203,7 @@ ${features.map((feature, index) => `  "feature_${index + 1}": {
 IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not the full text content.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-4.1',
     messages: [
       { role: 'system', content: 'You are a patent analysis expert. Always respond with valid JSON. For relevant_claims, provide only claim numbers, not full text.' },
       { role: 'user', content: prompt }

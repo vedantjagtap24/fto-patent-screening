@@ -15,18 +15,39 @@ const Login = ({ onLogin }) => {
     const { email, password, confirmPassword, isSignUp, isForgotPassword } = formState;
     
     if (isForgotPassword) {
-      if (!email) return updateFormState({ error: 'Please enter your email address' }) || false;
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return updateFormState({ error: 'Please enter a valid email address' }) || false;
+      if (!email) {
+        updateFormState({ error: 'Please enter your email address' });
+        return false;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        updateFormState({ error: 'Please enter a valid email address' });
+        return false;
+      }
       return true;
     }
 
-    if (!email || !password) return updateFormState({ error: 'Please fill in all fields' }) || false;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return updateFormState({ error: 'Please enter a valid email address' }) || false;
+    if (!email || !password) {
+      updateFormState({ error: 'Please fill in all fields' });
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      updateFormState({ error: 'Please enter a valid email address' });
+      return false;
+    }
 
     if (isSignUp) {
-      if (password.length < 6) return updateFormState({ error: 'Password must be at least 6 characters long' }) || false;
-      if (!confirmPassword) return updateFormState({ error: 'Please confirm your password' }) || false;
-      if (password !== confirmPassword) return updateFormState({ error: 'Passwords do not match' }) || false;
+      if (password.length < 6) {
+        updateFormState({ error: 'Password must be at least 6 characters long' });
+        return false;
+      }
+      if (!confirmPassword) {
+        updateFormState({ error: 'Please confirm your password' });
+        return false;
+      }
+      if (password !== confirmPassword) {
+        updateFormState({ error: 'Passwords do not match' });
+        return false;
+      }
     }
     return true;
   };
@@ -82,7 +103,7 @@ const Login = ({ onLogin }) => {
       if (formState.isSignUp) {
         return updateFormState({ 
           successMessage: 'Account created successfully! Please check your email to confirm your account before signing in.',
-          isLoading: false, isSignUp: false, password: '', confirmPassword: ''
+          isLoading: false, isSignUp: false, password: '', confirmPassword: '', error: ''
         });
       }
 
@@ -165,7 +186,7 @@ const Login = ({ onLogin }) => {
             <input
               type="email"
               value={formState.email}
-              onChange={(e) => updateFormState({ email: e.target.value, error: '', successMessage: '' })}
+              onChange={(e) => updateFormState({ email: e.target.value })}
               onKeyPress={handleKeyPress}
               placeholder="Enter your email"
               className="form-input"
@@ -178,7 +199,7 @@ const Login = ({ onLogin }) => {
               <label className="form-label">Password</label>
               <PasswordInput
                 value={formState.password}
-                onChange={(e) => updateFormState({ password: e.target.value, error: '', successMessage: '' })}
+                onChange={(e) => updateFormState({ password: e.target.value })}
                 placeholder={formState.isSignUp ? "Choose a password (min 6 characters)" : "Enter your password"}
                 show={formState.showPassword}
                 onToggle={() => updateFormState({ showPassword: !formState.showPassword })}
@@ -192,7 +213,7 @@ const Login = ({ onLogin }) => {
               <label className="form-label">Confirm Password</label>
               <PasswordInput
                 value={formState.confirmPassword}
-                onChange={(e) => updateFormState({ confirmPassword: e.target.value, error: '', successMessage: '' })}
+                onChange={(e) => updateFormState({ confirmPassword: e.target.value })}
                 placeholder="Confirm your password"
                 show={formState.showConfirmPassword}
                 onToggle={() => updateFormState({ showConfirmPassword: !formState.showConfirmPassword })}
