@@ -342,45 +342,6 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   return (
     <div className="dashboard-layout">
-      {/* Top Header Bar - Full Width */}
-      <div className="top-header">
-        <div className="header-left">
-          {/* Left side content if needed */}
-        </div>
-        <div className="header-right">
-          <div className="user-profile-section" ref={dropdownRef}>
-            <button className="profile-trigger" onClick={toggleDropdown}>
-              <div className="user-avatar">
-                <User size={18} />
-              </div>
-            </button>
-
-            {isDropdownOpen && (
-              <div className="profile-dropdown">
-                <div className="dropdown-user-info">
-                  <span className="dropdown-username">
-                    {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
-                  </span>
-                  <span className="dropdown-email">
-                    {user?.email}
-                  </span>
-                </div>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={toggleDarkMode}>
-                  {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-                  <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-                </button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout-item" onClick={handleLogout}>
-                  <LogOut size={16} />
-                  <span>Logout</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Sidebar */}
       <div className="sidebar">
         <div className="sidebar-header">
@@ -440,10 +401,52 @@ const MainLayout = ({ user, session, onLogout }) => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="main-content">
-        <div className="content-wrapper">
-          {renderActiveModule()}
+      {/* Main Content Area */}
+      <div className="main-content-area">
+        {/* Top Header */}
+        <div className="top-header">
+          <div className="header-left">
+            {/* Left side content if needed */}
+          </div>
+          <div className="header-right">
+            <div className="user-profile-section" ref={dropdownRef}>
+              <button className="profile-trigger" onClick={toggleDropdown}>
+                <div className="user-avatar">
+                  <User size={18} />
+                </div>
+              </button>
+
+              {isDropdownOpen && (
+                <div className="profile-dropdown">
+                  <div className="dropdown-user-info">
+                    <span className="dropdown-username">
+                      {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+                    </span>
+                    <span className="dropdown-email">
+                      {user?.email}
+                    </span>
+                  </div>
+                  <div className="dropdown-divider"></div>
+                  <button className="dropdown-item" onClick={toggleDarkMode}>
+                    {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                    <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                  </button>
+                  <div className="dropdown-divider"></div>
+                  <button className="dropdown-item logout-item" onClick={handleLogout}>
+                    <LogOut size={16} />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="main-content">
+          <div className="content-wrapper">
+            {renderActiveModule()}
+          </div>
         </div>
       </div>
     </div>
