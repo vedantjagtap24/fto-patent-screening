@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Filter, BarChart, Home as HomeIcon, User, Moon, Sun, LogOut, ChevronDown, Clock } from 'lucide-react';
+import { Filter, BarChart, Home as HomeIcon, User, Moon, Sun, LogOut, Clock } from 'lucide-react';
 import { supabase, signOut } from '../../lib/supabase';
 import Home from './Home/Home';
 import Screening from './Screening/Screening';
@@ -341,102 +341,112 @@ const MainLayout = ({ user, session, onLogout }) => {
   };
 
   return (
-    <div className="dashboard-container">
-      {/* User Dropdown - Floating Top Right */}
-      <div className="user-dropdown-container" ref={dropdownRef}>
-        <button className="user-dropdown-trigger" onClick={toggleDropdown}>
-          <div className="user-avatar">
-            <User size={18} />
-          </div>
-        </button>
-
-        {isDropdownOpen && (
-          <div className="user-dropdown-menu">
-            <div className="dropdown-user-info">
-              <span className="dropdown-username">
-                {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
-              </span>
-              <span className="dropdown-email">
-                {user?.email}
-              </span>
-            </div>
-            <div className="dropdown-divider"></div>
-            <button className="dropdown-item" onClick={toggleDarkMode}>
-              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-              <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-            </button>
-            <div className="dropdown-divider"></div>
-            <button className="dropdown-item logout-item" onClick={handleLogout}>
-              <LogOut size={16} />
-              <span>Logout</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Sidebar - Always Visible */}
-      <div className="sidebar">
-        <div className="sidebar-header">
-          <h1 className="sidebar-title">FTOlyzer</h1>
-          <p className="sidebar-subtitle">Patent Analysis Platform</p>
+    <div className="dashboard-layout">
+      {/* Top Header Bar - Full Width */}
+      <div className="top-header">
+        <div className="header-left">
+          {/* Left side content if needed */}
         </div>
-        
-        <nav className="sidebar-nav">
-          {navigationItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveModule(item.id)}
-                className={`nav-item ${activeModule === item.id ? 'nav-item-active' : ''}`}
-              >
-                <IconComponent size={20} className="nav-icon" />
-                <span className="nav-label">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <div className="header-right">
+          <div className="user-profile-section" ref={dropdownRef}>
+            <button className="profile-trigger" onClick={toggleDropdown}>
+              <div className="user-avatar">
+                <User size={18} />
+              </div>
+            </button>
 
-        <div className="sidebar-footer">
-          {/* Processing status */}
-          {appState.isProcessing && (
-            <div className="processing-status">
-              <div className="processing-header">
-                <Clock size={14} />
-                <span className="processing-text">
-                  Analyzing: {Math.round(appState.progress)}%
-                </span>
+            {isDropdownOpen && (
+              <div className="profile-dropdown">
+                <div className="dropdown-user-info">
+                  <span className="dropdown-username">
+                    {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+                  </span>
+                  <span className="dropdown-email">
+                    {user?.email}
+                  </span>
+                </div>
+                <div className="dropdown-divider"></div>
+                <button className="dropdown-item" onClick={toggleDarkMode}>
+                  {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                  <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
+                <div className="dropdown-divider"></div>
+                <button className="dropdown-item logout-item" onClick={handleLogout}>
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
               </div>
-              <div className="processing-details">
-                {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
-              </div>
-              <div className="processing-bar">
-                <div 
-                  className="processing-fill" 
-                  style={{ width: `${appState.progress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* System status */}
-          <div className="status-indicator">
-            <div className={`status-dot ${
-              backendStatus === 'connected' ? '' : 
-              backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
-            }`}></div>
-            <span className="status-text">
-              {backendStatus === 'connected' ? 'System Online' : 
-               backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
-            </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="main-content">
-        <div className="content-wrapper">
-          {renderActiveModule()}
+      {/* Content Area - Sidebar + Main */}
+      <div className="content-area">
+        {/* Sidebar */}
+        <div className="sidebar">
+          <div className="sidebar-header">
+            <h1 className="sidebar-title">FTOlyzer</h1>
+            <p className="sidebar-subtitle">Patent Analysis Platform</p>
+          </div>
+          
+          <nav className="sidebar-nav">
+            {navigationItems.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveModule(item.id)}
+                  className={`nav-item ${activeModule === item.id ? 'nav-item-active' : ''}`}
+                >
+                  <IconComponent size={20} className="nav-icon" />
+                  <span className="nav-label">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="sidebar-footer">
+            {/* Processing status */}
+            {appState.isProcessing && (
+              <div className="processing-status">
+                <div className="processing-header">
+                  <Clock size={14} />
+                  <span className="processing-text">
+                    Analyzing: {Math.round(appState.progress)}%
+                  </span>
+                </div>
+                <div className="processing-details">
+                  {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
+                </div>
+                <div className="processing-bar">
+                  <div 
+                    className="processing-fill" 
+                    style={{ width: `${appState.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* System status */}
+            <div className="status-indicator">
+              <div className={`status-dot ${
+                backendStatus === 'connected' ? '' : 
+                backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
+              }`}></div>
+              <span className="status-text">
+                {backendStatus === 'connected' ? 'System Online' : 
+                 backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="main-content">
+          <div className="content-wrapper">
+            {renderActiveModule()}
+          </div>
         </div>
       </div>
     </div>
