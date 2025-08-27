@@ -205,26 +205,6 @@ const Home = ({ onNavigate }) => {
               </div>
             ))}
           </div>
-
-          {/* Quick Actions */}
-          <div className="quick-actions">
-            <h2 className="actions-title">Get Started</h2>
-            <div className="actions-grid">
-              {actionCards.map((action) => (
-                <button 
-                  key={action.id}
-                  className={`action-card ${action.className}`}
-                  onClick={() => onNavigate && onNavigate(action.id)}
-                >
-                  {action.icon}
-                  <div className="action-content">
-                    <span className="action-label">{action.label}</span>
-                    <p className="action-description">{action.description}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
