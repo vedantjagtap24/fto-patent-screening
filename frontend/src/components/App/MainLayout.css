@@ -429,7 +429,8 @@ body.dark-mode .status-text {
 .main-content {
   grid-area: main;
   background-color: #f9fafb;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 0;
   margin: 0;
 }
@@ -443,8 +444,29 @@ body.dark-mode .main-content {
   height: 100%;
   padding: 0;
   margin: 0;
-  overflow: hidden;
-  display: block;
+  overflow-y: auto;
+}
+
+/* Override the module-content padding from child components */
+.content-wrapper .module-content {
+  padding: 2rem !important;
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+}
+
+/* Override section styles from child components */
+.content-wrapper .section {
+  margin: 0 !important;
+  border-radius: 1rem !important;
+  background-color: white !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+body.dark-mode .content-wrapper .section {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
