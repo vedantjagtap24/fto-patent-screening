@@ -216,21 +216,14 @@ body.dark-mode .dropdown-divider {
   background-color: #374151; 
 }
 
-/* ===== CONTENT AREA ===== */
-.content-area {
-  display: flex;
-  height: calc(100vh - 60px);
-  overflow: hidden;
-}
-
 /* ===== SIDEBAR ===== */
 .sidebar {
-  width: 200px;
+  grid-area: sidebar;
   background-color: white;
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  overflow: hidden;
 }
 
 body.dark-mode .sidebar { 
@@ -434,10 +427,10 @@ body.dark-mode .status-text {
 
 /* ===== MAIN CONTENT ===== */
 .main-content {
+  grid-area: main;
   background-color: #f9fafb;
   overflow-y: auto;
   overflow-x: hidden;
-  flex: 1;
 }
 
 body.dark-mode .main-content {
@@ -447,7 +440,7 @@ body.dark-mode .main-content {
 .content-wrapper {
   width: 100%;
   height: 100%;
-  padding: 2rem;
+  padding: 0;
   overflow-y: auto;
 }
 
@@ -461,9 +454,6 @@ body.dark-mode .main-content {
 @media (max-width: 1024px) {
   .dashboard-layout {
     grid-template-columns: 180px 1fr;
-  }
-  .sidebar { 
-    width: 180px; 
   }
   .sidebar-title { 
     font-size: 1.25rem; 
@@ -480,9 +470,6 @@ body.dark-mode .main-content {
   .dashboard-layout {
     grid-template-columns: 160px 1fr;
   }
-  .sidebar { 
-    width: 160px; 
-  }
   .sidebar-header { 
     padding: 1.25rem 1rem; 
   }
@@ -498,12 +485,6 @@ body.dark-mode .main-content {
   .dashboard-layout {
     grid-template-rows: 50px 1fr;
     grid-template-columns: 140px 1fr;
-  }
-  .sidebar {
-    width: 140px;
-  }
-  .content-wrapper {
-    padding: 1.5rem 1rem;
   }
   .sidebar-header { 
     padding: 1rem 0.75rem; 
@@ -533,12 +514,6 @@ body.dark-mode .main-content {
     grid-template-rows: 50px 1fr;
     grid-template-columns: 120px 1fr;
   }
-  .sidebar {
-    width: 120px;
-  }
-  .content-wrapper {
-    padding: 1rem;
-  }
   .sidebar-header { 
     padding: 1rem 0.5rem; 
   }
@@ -563,12 +538,6 @@ body.dark-mode .main-content {
   .dashboard-layout {
     grid-template-rows: 45px 1fr;
     grid-template-columns: 100px 1fr;
-  }
-  .sidebar {
-    width: 100px;
-  }
-  .content-wrapper {
-    padding: 0.75rem;
   }
   .sidebar-header { 
     padding: 0.75rem 0.25rem; 
@@ -601,12 +570,6 @@ body.dark-mode .main-content {
   .dashboard-layout {
     grid-template-rows: 40px 1fr;
     grid-template-columns: 80px 1fr;
-  }
-  .sidebar {
-    width: 80px;
-  }
-  .content-wrapper {
-    padding: 0.5rem;
   }
   .sidebar-header { 
     padding: 0.5rem 0.125rem; 
