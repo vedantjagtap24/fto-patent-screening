@@ -1,715 +1,445 @@
-import React, { useState, useCallback } from 'react';
-import { Upload, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X, Maximize2, Minimize2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import './Screening.css';
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const OpenAI = require('openai');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const Screening = ({ 
-  backendStatus, file, setFile, claims, setClaims, isProcessing, progress, results, error, setError,
-  processedCount, currentlyProcessing, elapsedTime, features, addFeature, removeFeature,
-  startBulkScreening, clearAllData, formatElapsedTime
-}) => {
-  const [uiState, setUiState] = useState({
-    searchTerm: '', currentPage: 1, selectedRankFilter: null, selectedFeatureFilter: null,
-    showAnalysisModal: false, selectedAnalysis: null, newFeature: '',
-    showFeatureDropdown: false, showRankDropdown: false, fullscreen: false
+const app = express();
+const port = process.env.PORT || process.env.RAILWAY_PORT || 3001;
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+
+app.use(cors());
+app.use(express.json({ limit: '100mb' }));
+
+const authenticateUser = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'No authorization token provided' });
+
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return res.status(401).json({ error: 'Invalid or expired token' });
+
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Authentication failed' });
+  }
+};
+
+const buildPaths = [
+  path.join(__dirname, 'public'),
+  path.join(__dirname, '../frontend/build'),
+  path.join(process.cwd(), 'frontend/build'),
+  '/app/frontend/build'
+];
+const buildPath = buildPaths.find(p => fs.existsSync(p));
+if (buildPath) {
+  app.use(express.static(buildPath));
+}
+
+const findPublicationNumber = (claim) => {
+  const columns = ['Publication Number', 'Publication', 'Pub Number', 'Patent Number', 'Patent Publication', 'Publication No', 'Pub No', 'Patent No', 'PublicationNumber', 'PatentNumber'];
+  
+  for (const col of columns) {
+    if (claim[col] && claim[col] !== 'N/A' && claim[col] !== '') {
+      return claim[col];
+    }
+  }
+  
+  const keys = Object.keys(claim);
+  for (const key of keys) {
+    const lowerKey = key.toLowerCase();
+    if ((lowerKey.includes('publication') || lowerKey.includes('patent') || lowerKey.includes('pub')) &&
+        claim[key] && claim[key] !== 'N/A' && claim[key] !== '') {
+      return claim[key];
+    }
+  }
+  
+  return 'N/A';
+};
+
+const dbOperation = async (operation) => {
+  try {
+    const result = await operation();
+    return { success: true, data: result.data, error: result.error };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'Backend is running',
+    timestamp: new Date().toISOString(),
+    port,
+    env: process.env.NODE_ENV || 'development',
+    openaiConfigured: !!process.env.OPENAI_API_KEY,
+    supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+    buildPath: buildPath || 'Not found'
+  });
+});
+
+const projectRoutes = {
+  create: async (req, res) => {
+    const { name, description } = req.body;
+    const result = await dbOperation(
+      () => supabase.from('projects').insert([{
+        user_id: req.user.id,
+        name: name || 'New Analysis Project',
+        description: description || '',
+        status: 'draft'
+      }]).select().single()
+    );
+    
+    result.success ? res.json({ success: true, project: result.data }) : 
+                    res.status(500).json({ error: 'Failed to create project', message: result.error });
+  },
+
+  list: async (req, res) => {
+    const result = await dbOperation(
+      () => supabase.from('projects').select('*').eq('user_id', req.user.id).order('updated_at', { ascending: false })
+    );
+    
+    result.success ? res.json({ success: true, projects: result.data }) :
+                    res.status(500).json({ error: 'Failed to fetch projects', message: result.error });
+  }
+};
+
+const featureRoutes = {
+  save: async (req, res) => {
+    const { projectId } = req.params;
+    const { features } = req.body;
+
+    await supabase.from('features').delete().eq('project_id', projectId);
+    
+    const result = await dbOperation(
+      () => supabase.from('features').insert(
+        features.map((feature, index) => ({
+          project_id: projectId,
+          name: feature,
+          order_index: index
+        }))
+      ).select()
+    );
+
+    result.success ? res.json({ success: true, features: result.data }) :
+                    res.status(500).json({ error: 'Failed to save features', message: result.error });
+  },
+
+  get: async (req, res) => {
+    const { projectId } = req.params;
+    const result = await dbOperation(
+      () => supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true })
+    );
+
+    result.success ? res.json({ success: true, features: result.data }) :
+                    res.status(500).json({ error: 'Failed to fetch features', message: result.error });
+  }
+};
+
+const claimRoutes = {
+  save: async (req, res) => {
+    const { projectId } = req.params;
+    const { claims } = req.body;
+
+    await supabase.from('patent_claims').delete().eq('project_id', projectId);
+    
+    const result = await dbOperation(
+      () => supabase.from('patent_claims').insert(
+        claims.map((claim, index) => ({
+          project_id: projectId,
+          claim_number: claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (index + 1),
+          publication_number: findPublicationNumber(claim),
+          claims_text: claim.Claims || claim.claims || claim.Claim || claim.claim || '',
+          raw_data: claim
+        }))
+      ).select()
+    );
+
+    result.success ? res.json({ success: true, claims: result.data }) :
+                    res.status(500).json({ error: 'Failed to save claims', message: result.error });
+  },
+
+  get: async (req, res) => {
+    const { projectId } = req.params;
+    const result = await dbOperation(
+      () => supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
+    );
+
+    result.success ? res.json({ success: true, claims: result.data }) :
+                    res.status(500).json({ error: 'Failed to fetch claims', message: result.error });
+  }
+};
+
+async function analyzeSingleClaim(claim, claimNumber, features) {
+  const featureList = features.map((feature, index) => `${index + 1}. ${feature}`).join('\n');
+  const prompt = `Analyze the following patent claim and determine if it contains the specified features.
+
+FEATURES TO DETECT:
+${featureList}
+
+PATENT CLAIM:
+${claim}
+
+RESPONSE FORMAT (JSON only):
+{
+${features.map((feature, index) => `  "feature_${index + 1}": {
+    "feature_name": "${feature}",
+    "present": true/false,
+    "confidence": "High/Medium/Low",
+    "reasoning": "Brief explanation",
+    "relevant_claims": "If feature is present, list claim numbers (e.g., '1, 2, 3') where this feature appears. If not present, use 'N/A'"
+  }`).join(',\n')}
+}
+
+IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not the full text content.`;
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4.1',
+    messages: [
+      { role: 'system', content: 'You are a patent analysis expert. Always respond with valid JSON. For relevant_claims, provide only claim numbers, not full text.' },
+      { role: 'user', content: prompt }
+    ],
+    max_tokens: 2000,
+    temperature: 0.1
   });
 
-  const [dragOver, setDragOver] = useState(false);
+  return JSON.parse(response.choices[0].message.content.trim());
+}
 
-  const updateUiState = (updates) => setUiState(prev => ({ ...prev, ...updates }));
-  const resultsPerPage = 10;
+async function saveAnalysisResults(projectId, claimId, features, analysisResult) {
+  const featureCount = Object.keys(analysisResult).filter(key => 
+    key.startsWith('feature_') && analysisResult[key]?.present === true
+  ).length;
+  
+  let rank = null;
+  if (featureCount === features.length) rank = 1;
+  else if (featureCount >= Math.ceil(features.length * 0.75)) rank = 2;
+  else if (featureCount >= Math.ceil(features.length * 0.5)) rank = 3;
+  else if (featureCount >= 1) rank = 4;
 
-  const calculateRank = (result) => {
-    const featureCount = features.filter((_, index) => result[`feature_${index + 1}`] === true).length;
-    if (featureCount === features.length) return 1;
-    if (featureCount >= Math.ceil(features.length * 0.75)) return 2;
-    if (featureCount >= Math.ceil(features.length * 0.5)) return 3;
-    return featureCount >= 1 ? 4 : null;
-  };
+  const { error } = await supabase.from('analysis_summary').insert([{
+    project_id: projectId,
+    claim_id: claimId,
+    rank,
+    feature_count: featureCount,
+    total_features: features.length,
+    detailed_analysis: analysisResult
+  }]);
 
-  const processResultsWithRanking = (results) => results.map(result => ({
-    ...result,
-    rank: calculateRank(result),
-    featureCount: features.filter((_, index) => result[`feature_${index + 1}`] === true).length
-  }));
+  if (error) throw error;
+  return { rank, featureCount };
+}
 
-  const getFilteredResults = (rankedResults) => {
-    let filtered = rankedResults;
-    
-    if (uiState.selectedRankFilter !== null) {
-      filtered = filtered.filter(result => 
-        uiState.selectedRankFilter === 'none' ? result.rank === null : result.rank === uiState.selectedRankFilter
-      );
-    } else {
-      filtered = filtered.filter(result => result.rank === 1 || result.rank === 2);
-    }
+const analysisRoutes = {
+  analyze: async (req, res) => {
+    const { projectId } = req.params;
 
-    if (uiState.selectedFeatureFilter) {
-      filtered = filtered.filter(result => result[uiState.selectedFeatureFilter] === true);
-    }
+    try {
+      await supabase.from('projects').update({ status: 'processing' }).eq('id', projectId);
 
-    return filtered
-      .filter(result => 
-        result.claimNumber.toString().includes(uiState.searchTerm) ||
-        (result.publicationNumber && result.publicationNumber.toLowerCase().includes(uiState.searchTerm.toLowerCase()))
-      )
-      .sort((a, b) => {
-        if (a.rank === null && b.rank === null) return 0;
-        if (a.rank === null) return 1;
-        if (b.rank === null) return -1;
-        return a.rank - b.rank;
-      });
-  };
+      const [featuresResult, claimsResult] = await Promise.all([
+        supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true }),
+        supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
+      ]);
 
-  const findPublicationColumn = (jsonData) => {
-    if (!jsonData || jsonData.length === 0) return null;
-    
-    const firstRow = jsonData[0];
-    const possibleColumns = ['Publication Number', 'Publication', 'Pub Number', 'Patent Number'];
-    
-    return possibleColumns.find(col => firstRow.hasOwnProperty(col)) || 
-           Object.keys(firstRow).find(column => {
-             const lowerColumn = column.toLowerCase();
-             return lowerColumn.includes('publication') || lowerColumn.includes('patent') || lowerColumn.includes('pub');
-           });
-  };
+      if (featuresResult.error || claimsResult.error) throw new Error('Failed to fetch project data');
 
-  const processFile = (uploadedFile) => {
-    if (!uploadedFile.name.match(/\.(xlsx|xls)$/)) {
-      setError('Please upload an Excel file (.xlsx or .xls)');
-      return;
-    }
+      const features = featuresResult.data;
+      const claims = claimsResult.data;
+      const featureNames = features.map(f => f.name);
 
-    setFile(uploadedFile);
-    setError('');
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+      if (!features.length || !claims.length) {
+        return res.status(400).json({ error: 'No features or claims found for this project' });
+      }
+      
+      const results = [];
+      const batchSize = 10;
+      
+      for (let i = 0; i < claims.length; i += batchSize) {
+        const batch = claims.slice(i, i + batchSize);
         
-        const publicationColumn = findPublicationColumn(jsonData);
-        if (publicationColumn) {
-          jsonData.forEach(claim => {
-            if (!claim['Publication Number'] && claim[publicationColumn]) {
-              claim['Publication Number'] = claim[publicationColumn];
+        const batchPromises = batch.map(async (claim) => {
+          try {
+            const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
+            const { rank, featureCount } = await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
+            
+            const result = {
+              claimNumber: claim.claim_number,
+              publicationNumber: claim.publication_number,
+              features: featureNames,
+              detailed_analysis: analysis,
+              rank,
+              featureCount
+            };
+
+            featureNames.forEach((_, index) => {
+              const key = `feature_${index + 1}`;
+              result[key] = analysis[key]?.present || false;
+            });
+
+            return result;
+          } catch (error) {
+            const errorResult = {
+              claimNumber: claim.claim_number,
+              publicationNumber: claim.publication_number,
+              features: featureNames,
+              detailed_analysis: {},
+              rank: null,
+              featureCount: 0
+            };
+
+            featureNames.forEach((feature, index) => {
+              const key = `feature_${index + 1}`;
+              errorResult[key] = false;
+              errorResult.detailed_analysis[key] = {
+                feature_name: feature,
+                present: false,
+                confidence: "Low",
+                reasoning: "Analysis failed - unable to process claim",
+                relevant_claims: "N/A"
+              };
+            });
+
+            return errorResult;
+          }
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+        
+        if (i + batchSize < claims.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      await supabase.from('projects').update({ 
+        status: 'completed',
+        updated_at: new Date().toISOString()
+      }).eq('id', projectId);
+      
+      res.json({
+        success: true,
+        totalProcessed: results.length,
+        results: results
+      });
+
+    } catch (error) {
+      await supabase.from('projects').update({ status: 'error' }).eq('id', projectId);
+      
+      res.status(500).json({
+        success: false,
+        error: 'Failed to process claims',
+        message: error.message,
+        results: []
+      });
+    }
+  },
+
+  getResults: async (req, res) => {
+    const { projectId } = req.params;
+
+    try {
+      const [resultsData, featuresData] = await Promise.all([
+        supabase.from('analysis_summary').select(`*, patent_claims (claim_number, publication_number)`).eq('project_id', projectId).order('created_at', { ascending: true }),
+        supabase.from('features').select('name').eq('project_id', projectId).order('order_index', { ascending: true })
+      ]);
+
+      if (resultsData.error || featuresData.error) throw new Error('Failed to fetch results');
+
+      const featureNames = featuresData.data?.map(f => f.name) || [];
+      const formattedResults = resultsData.data.map(result => {
+        const formatted = {
+          claimNumber: result.patent_claims.claim_number,
+          publicationNumber: result.patent_claims.publication_number,
+          features: featureNames,
+          detailed_analysis: result.detailed_analysis,
+          rank: result.rank,
+          featureCount: result.feature_count
+        };
+
+        if (result.detailed_analysis) {
+          Object.keys(result.detailed_analysis).forEach(key => {
+            if (key.startsWith('feature_')) {
+              formatted[key] = result.detailed_analysis[key]?.present || false;
             }
           });
         }
-        
-        setClaims(jsonData);
-        updateUiState({ currentPage: 1, searchTerm: '', selectedRankFilter: null, selectedFeatureFilter: null });
-      } catch (err) {
-        setError('Error parsing Excel file: ' + err.message);
-      }
-    };
-    reader.readAsArrayBuffer(uploadedFile);
-  };
 
-  const handleFileUpload = useCallback((event) => {
-    const uploadedFile = event.target.files[0];
-    if (!uploadedFile) return;
-    processFile(uploadedFile);
-  }, [setFile, setClaims, setError]);
-
-  // Drag and drop handlers
-  const onDragEnter = useCallback((e) => {
-    e.preventDefault();
-    setDragOver(true);
-  }, []);
-
-  const onDragOver = useCallback((e) => {
-    e.preventDefault();
-    setDragOver(true);
-  }, []);
-
-  const onDragLeave = useCallback((e) => {
-    e.preventDefault();
-    setDragOver(false);
-  }, []);
-
-  const onDrop = useCallback((e) => {
-    e.preventDefault();
-    setDragOver(false);
-    
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length > 0) {
-      processFile(droppedFiles[0]);
-    }
-  }, []);
-
-  const handleFilter = (type, key) => {
-    const updates = { currentPage: 1 };
-    if (type === 'feature') {
-      updates.selectedFeatureFilter = uiState.selectedFeatureFilter === key ? null : key;
-      updates.selectedRankFilter = null;
-      updates.showFeatureDropdown = false;
-    } else {
-      updates.selectedRankFilter = uiState.selectedRankFilter === key ? null : key;
-      updates.selectedFeatureFilter = null;
-      updates.showRankDropdown = false;
-    }
-    updateUiState(updates);
-  };
-
-  const exportResults = () => {
-    if (results.length === 0) return;
-    const filteredResults = getFilteredResults(processResultsWithRanking(results));
-    if (filteredResults.length === 0) return alert('No results to export. Please adjust your filters.');
-
-    const exportData = filteredResults.map((result) => {
-      const originalClaim = claims.find(c => (c['S.No.'] || claims.indexOf(c) + 1) === result.claimNumber) || {};
-      const data = {
-        'S.No.': result.claimNumber,
-        'Publication Number': result.publicationNumber || '',
-        'Claims': originalClaim.Claims || '',
-        'Rank': result.rank || 'No Rank',
-        'Feature Count': `${result.featureCount}/${features.length}`
-      };
-
-      features.forEach((feature, index) => {
-        data[feature] = result[`feature_${index + 1}`] ? 'Yes' : 'No';
+        return formatted;
       });
 
-      if (!uiState.selectedFeatureFilter && result.detailed_analysis) {
-        features.forEach((feature, index) => {
-          const key = `feature_${index + 1}`;
-          const analysis = result.detailed_analysis[key];
-          if (analysis) {
-            data[`${feature} - Confidence`] = analysis.confidence || 'N/A';
-            data[`${feature} - Reasoning`] = analysis.reasoning || 'N/A';
-            data[`${feature} - Relevant Claims`] = analysis.relevant_claims || 'N/A';
-          }
-        });
-      }
-      return data;
-    });
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Patent Analysis Results');
-    XLSX.writeFile(wb, 'patent_analysis_results.xlsx');
-  };
-
-  const getStats = () => {
-    const rankedResults = processResultsWithRanking(results);
-    const stats = { total: results.length };
-    
-    features.forEach((feature, index) => {
-      stats[`feature_${index + 1}`] = results.filter(r => r[`feature_${index + 1}`]).length;
-    });
-
-    const rankStats = {
-      rank1: rankedResults.filter(r => r.rank === 1).length,
-      rank2: rankedResults.filter(r => r.rank === 2).length,
-      rank3: rankedResults.filter(r => r.rank === 3).length,
-      rank4: rankedResults.filter(r => r.rank === 4).length,
-      noRank: rankedResults.filter(r => r.rank === null).length
-    };
-
-    return { stats, rankStats, rankedResults };
-  };
-
-  const { stats, rankStats, rankedResults } = getStats();
-  const filteredResults = getFilteredResults(rankedResults);
-  const totalPages = Math.ceil(filteredResults.length / resultsPerPage);
-  const paginatedResults = filteredResults.slice(
-    (uiState.currentPage - 1) * resultsPerPage,
-    uiState.currentPage * resultsPerPage
-  );
-
-  const featureOptions = features.map((feature, index) => ({
-    key: `feature_${index + 1}`,
-    label: feature,
-    count: stats[`feature_${index + 1}`] || 0
-  }));
-
-  const rankOptions = [
-    { key: 1, label: `Rank 1 (${features.length} Features)`, count: rankStats.rank1 },
-    { key: 2, label: `Rank 2 (${Math.ceil(features.length * 0.75)}+ Features)`, count: rankStats.rank2 },
-    { key: 3, label: `Rank 3 (${Math.ceil(features.length * 0.5)}+ Features)`, count: rankStats.rank3 },
-    { key: 4, label: 'Rank 4 (1+ Feature)', count: rankStats.rank4 },
-    { key: 'none', label: 'No Rank (0 Features)', count: rankStats.noRank }
-  ];
-
-  const FilterDropdown = ({ type, options, selected, show, setShow }) => (
-    <div className="filter-dropdown modern-dropdown">
-      <button 
-        className={`modern-filter-btn ${selected ? 'selected' : ''}`}
-        onClick={() => setShow(!show)}
-      >
-        <span>
-          {type === 'feature' 
-            ? (selected ? features[parseInt(selected.split('_')[1]) - 1] : 'Filter by Feature')
-            : (selected !== null ? options.find(r => r.key === selected)?.label || 'Filter by Rank' : 'Filter by Rank')
-          }
-        </span>
-        <svg className={`dropdown-arrow ${show ? 'rotated' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M6 9l6 6 6-6"/>
-        </svg>
-      </button>
-      
-      {show && (
-        <div className="modern-dropdown-menu">
-          <div className="modern-dropdown-option" onClick={() => handleFilter(type, null)}>
-            <span>All {type === 'feature' ? 'Features' : 'Ranks'}</span>
-          </div>
-          {options.map((option) => (
-            <div
-              key={option.key}
-              className={`modern-dropdown-option ${option.count === 0 ? 'disabled' : ''} ${selected === option.key ? 'selected' : ''}`}
-              onClick={() => option.count > 0 && handleFilter(type, option.key)}
-            >
-              <span>{option.label}</span>
-              <span className="option-count">({option.count})</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div className="module-content">
-      <div className="section">
-        <div 
-          className={`centered-upload-section ${dragOver ? 'is-drag-over' : ''}`}
-          onDragEnter={onDragEnter}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-        >
-          <div className="upload-and-analysis-container">
-            <div className="upload-section-centered">
-              <label htmlFor="file-upload" className="centered-upload-button">
-                <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" id="file-upload" />
-                <Upload size={20} className="upload-button-icon" />
-                Upload Excel File
-              </label>
-              
-              {file && (
-                <div className="file-success-centered">
-                  <CheckCircle size={16} color="#059669" />
-                  <span>{file.name} - {claims.length} patents detected</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {claims.length > 0 && (
-            <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'white', borderRadius: '1rem', border: '1px solid #e5e7eb' }}>
-              <h3 style={{ marginBottom: '1rem', fontWeight: '600', color: '#111827' }}>
-                What features do you want to find?
-              </h3>
-
-              {features.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ marginBottom: '0.5rem', color: '#374151' }}>
-                    Features to analyze ({features.length}):
-                  </h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-                    {features.map((feature, index) => (
-                      <div key={index} className="feature-badge" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem' }}>
-                        <span>{feature}</span>
-                        <button onClick={() => removeFeature(index)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0', display: 'flex' }}>
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  value={uiState.newFeature}
-                  onChange={(e) => updateUiState({ newFeature: e.target.value })}
-                  onKeyPress={(e) => e.key === 'Enter' && addFeature(uiState.newFeature) && updateUiState({ newFeature: '' })}
-                  placeholder="Type a feature (e.g., 'wireless connectivity', 'machine learning')"
-                  style={{ flex: 1, padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
-                />
-                <button
-                  onClick={() => addFeature(uiState.newFeature) && updateUiState({ newFeature: '' })}
-                  className="start-button-centered"
-                  style={{ minWidth: 'auto', padding: '0.5rem 1rem' }}
-                >
-                  <Plus size={16} className="button-icon" />
-                  Add
-                </button>
-              </div>
-            </div>
-          )}
-
-          {claims.length > 0 && features.length > 0 && (
-            <button
-              onClick={startBulkScreening}
-              disabled={isProcessing || backendStatus !== 'connected'}
-              className={`start-button-centered ${isProcessing || backendStatus !== 'connected' ? 'disabled' : ''}`}
-              style={{ marginTop: '1.5rem' }}
-            >
-              <Play size={18} className="button-icon" />
-              {isProcessing ? 'Processing...' : 'Start Analysis'}
-            </button>
-          )}
-
-          {isProcessing && (
-            <div className="progress-section-centered">
-              <div className="progress-info-row">
-                <div className="progress-stats">
-                  <div className="progress-number-compact">{Math.round(progress)}%</div>
-                  <div className="progress-details">
-                    <div className="progress-label-compact">{processedCount} of {claims.length} patents analyzed</div>
-                    <div className="progress-time-compact">{formatElapsedTime(elapsedTime)}</div>
-                  </div>
-                </div>
-                
-                {currentlyProcessing && (
-                  <div className="progress-status-compact">
-                    <Clock size={14} className="progress-status-icon" />
-                    <span className="progress-current">{currentlyProcessing}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="progress-bar-compact">
-                <div className="progress-fill" style={{ width: `${progress}%` }} />
-              </div>
-              
-              {processedCount > 0 && processedCount < claims.length && (
-                <div style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center', marginTop: '0.5rem' }}>
-                  Estimated time remaining: {(() => {
-                    const avgTimePerClaim = elapsedTime / processedCount;
-                    const remainingClaims = claims.length - processedCount;
-                    return formatElapsedTime(avgTimePerClaim * remainingClaims);
-                  })()}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {error && (
-        <div className="error-box">
-          <div className="error-content">
-            <AlertCircle size={24} color="#dc2626" />
-            <p className="error-text">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {results.length > 0 && (
-        <div className="section">
-          <div className="results-header">
-            <h2 className="results-title">
-              Analysis Results
-              <span className="results-badge">{results.length} processed</span>
-            </h2>
-          </div>
-
-          <div className="dropdown-filters">
-            <div className="filters-header">
-              <div className="filters-title-section">
-                <h3 className="filters-title">Filters & Export</h3>
-                <div className="results-summary">
-                  <span className="summary-text">
-                    Showing {filteredResults.length} of {stats.total} patents
-                    {uiState.selectedFeatureFilter && ` • ${features[parseInt(uiState.selectedFeatureFilter.split('_')[1]) - 1]}`}
-                    {uiState.selectedRankFilter !== null && ` • ${rankOptions.find(r => r.key === uiState.selectedRankFilter)?.label}`}
-                    {uiState.selectedRankFilter === null && uiState.selectedFeatureFilter === null && ` • High Priority (Rank 1 & 2)`}
-                    {uiState.searchTerm && ` • Search: "${uiState.searchTerm}"`}
-                  </span>
-                </div>
-              </div>
-              
-              {(uiState.selectedFeatureFilter || uiState.selectedRankFilter || uiState.searchTerm) && (
-                <button onClick={() => updateUiState({
-                  selectedFeatureFilter: null, selectedRankFilter: null, searchTerm: '', currentPage: 1,
-                  showFeatureDropdown: false, showRankDropdown: false
-                })} className="clear-all-btn">
-                  Clear All Filters
-                </button>
-              )}
-            </div>
-
-            <div className="dropdown-filters-row">
-              <FilterDropdown
-                type="feature"
-                options={featureOptions}
-                selected={uiState.selectedFeatureFilter}
-                show={uiState.showFeatureDropdown}
-                setShow={(show) => updateUiState({ showFeatureDropdown: show, showRankDropdown: false })}
-              />
-
-              <FilterDropdown
-                type="rank"
-                options={rankOptions}
-                selected={uiState.selectedRankFilter}
-                show={uiState.showRankDropdown}
-                setShow={(show) => updateUiState({ showRankDropdown: show, showFeatureDropdown: false })}
-              />
-
-              <button onClick={exportResults} className="export-button">
-                <Download size={16} className="export-button-icon" />
-                Export Results
-              </button>
-            </div>
-          </div>
-
-          <div className="search-container">
-            <input
-              type="text"
-              placeholder="Search patent or publication number..."
-              value={uiState.searchTerm}
-              onChange={(e) => updateUiState({ searchTerm: e.target.value, currentPage: 1 })}
-              className="search-input"
-            />
-          </div>
-
-          <div className="table-container">
-            <table className="results-table">
-              <thead className="table-header">
-                <tr>
-                  {!uiState.selectedFeatureFilter && <th className="table-header-cell">Rank</th>}
-                  <th className="table-header-cell">S.No.</th>
-                  <th className="table-header-cell">Publication</th>
-                  
-                  {!uiState.selectedFeatureFilter && features.map((feature, index) => (
-                    <th key={index} className="table-header-cell">{feature}</th>
-                  ))}
-                  
-                  {uiState.selectedFeatureFilter && (
-                    <th className="table-header-cell feature-highlight">
-                      {features[parseInt(uiState.selectedFeatureFilter.split('_')[1]) - 1]}
-                    </th>
-                  )}
-                  
-                  <th className="table-header-cell">Analysis Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedResults.map((result, index) => (
-                  <tr key={index} className="table-row">
-                    {!uiState.selectedFeatureFilter && (
-                      <td className="table-cell table-cell-center">
-                        <span className={`rank-badge ${
-                          result.rank ? `rank-${result.rank}` : 'rank-none'
-                        }`}>
-                          {result.rank || '-'}
-                        </span>
-                      </td>
-                    )}
-                    <td className="table-cell table-cell-center">
-                      <span className="table-cell-claim">{result.claimNumber}</span>
-                    </td>
-                    <td className="table-cell table-cell-center">
-                      {result.publicationNumber && result.publicationNumber !== 'N/A' ? (
-                        <a href={`https://patents.google.com/patent/${result.publicationNumber}`}
-                          target="_blank" rel="noopener noreferrer" className="publication-link"
-                          title={`View ${result.publicationNumber} on Google Patents`}>
-                          {result.publicationNumber}
-                        </a>
-                      ) : (
-                        <span className="table-cell-publication">N/A</span>
-                      )}
-                    </td>
-                    
-                    {!uiState.selectedFeatureFilter && features.map((feature, featureIndex) => (
-                      <td key={featureIndex} className="table-cell table-cell-center">
-                        <span className={`badge ${result[`feature_${featureIndex + 1}`] ? 'badge-yes' : 'badge-no'}`}>
-                          {result[`feature_${featureIndex + 1}`] ? 'Yes' : 'No'}
-                        </span>
-                      </td>
-                    ))}
-                    
-                    {uiState.selectedFeatureFilter && (
-                      <td className="table-cell table-cell-center feature-highlight-cell">
-                        <span className={`badge ${result[uiState.selectedFeatureFilter] ? 'badge-yes' : 'badge-no'}`}>
-                          {result[uiState.selectedFeatureFilter] ? 'Yes' : 'No'}
-                        </span>
-                      </td>
-                    )}
-                    
-                    <td className="table-cell table-cell-center">
-                      <button 
-                        className="details-btn"
-                        onClick={() => {
-                          updateUiState({ selectedAnalysis: result, showAnalysisModal: true });
-                          document.body.style.overflow = 'hidden';
-                        }}
-                        disabled={!result.detailed_analysis || (result.rank !== 1 && result.rank !== 2)}
-                        title={result.rank === 1 || result.rank === 2 ? "View detailed analysis" : "Analysis details only available for Rank 1 & 2 patents"}
-                      >
-                        <Eye size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="pagination">
-              <p className="pagination-info">
-                Showing <span className="pagination-info-bold">{((uiState.currentPage - 1) * resultsPerPage) + 1}</span> to <span className="pagination-info-bold">{Math.min(uiState.currentPage * resultsPerPage, filteredResults.length)}</span> of <span className="pagination-info-bold">{filteredResults.length}</span> results
-              </p>
-              <div className="pagination-controls">
-                <button
-                  onClick={() => updateUiState({ currentPage: Math.max(1, uiState.currentPage - 1) })}
-                  disabled={uiState.currentPage === 1}
-                  className="pagination-button"
-                >
-                  Previous
-                </button>
-                
-                <div className="pagination-numbers">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) pageNum = i + 1;
-                    else if (uiState.currentPage <= 3) pageNum = i + 1;
-                    else if (uiState.currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                    else pageNum = uiState.currentPage - 2 + i;
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => updateUiState({ currentPage: pageNum })}
-                        className={`pagination-button ${uiState.currentPage === pageNum ? 'active' : ''}`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <button
-                  onClick={() => updateUiState({ currentPage: Math.min(totalPages, uiState.currentPage + 1) })}
-                  disabled={uiState.currentPage === totalPages}
-                  className="pagination-button"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {uiState.showAnalysisModal && uiState.selectedAnalysis?.detailed_analysis && (
-        <div className="modal-overlay" onClick={() => {
-          updateUiState({ showAnalysisModal: false, selectedAnalysis: null });
-          document.body.style.overflow = 'unset';
-        }}>
-          <div className={`modal ${uiState.fullscreen ? 'modal--fullscreen' : ''}`} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Detailed Analysis - Claim {uiState.selectedAnalysis.claimNumber}</h2>
-              <div className="modal-controls">
-                <button 
-                  className="expand-btn" 
-                  onClick={() => updateUiState({ fullscreen: !uiState.fullscreen })}
-                  title={uiState.fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                >
-                  {uiState.fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                </button>
-                <button className="close-btn" onClick={() => {
-                  updateUiState({ showAnalysisModal: false, selectedAnalysis: null, fullscreen: false });
-                  document.body.style.overflow = 'unset';
-                }}>×</button>
-              </div>
-            </div>
-            
-            <div className="modal-content">
-              <div className="claim-info">
-                <div className="claim-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">Patent:</span>
-                    <span className="meta-value">{uiState.selectedAnalysis.publicationNumber || 'N/A'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Rank:</span>
-                    <span className="meta-value">
-                      {uiState.selectedAnalysis.rank ? `${uiState.selectedAnalysis.rank} (${uiState.selectedAnalysis.featureCount}/${features.length} features)` : `No Rank (0/${features.length} features)`}
-                    </span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Analysis Date:</span>
-                    <span className="meta-value">{new Date().toLocaleDateString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="analysis-grid">
-                {features.map((feature, index) => {
-                  const featureKey = `feature_${index + 1}`;
-                  const featureAnalysis = uiState.selectedAnalysis.detailed_analysis[featureKey];
-                  
-                  if (uiState.selectedFeatureFilter && uiState.selectedFeatureFilter !== featureKey) return null;
-                  if (!featureAnalysis) return (
-                    <div key={featureKey} className="feature-analysis absent">
-                      <div className="feature-header">
-                        <div className="feature-name"><span>✗</span>{feature}</div>
-                        <div className="confidence-score confidence-low">No Data</div>
-                      </div>
-                      <div className="feature-details">
-                        <h4>Analysis Reasoning:</h4>
-                        <p>No analysis data available for this feature.</p>
-                        <div className="error-note">
-                          <strong>Note:</strong> Expected key "{featureKey}" not found in analysis results.
-                        </div>
-                      </div>
-                    </div>
-                  );
-
-                  const confidenceClass = featureAnalysis.confidence?.toLowerCase() === 'high' ? 'confidence-high' : 
-                                        featureAnalysis.confidence?.toLowerCase() === 'medium' ? 'confidence-medium' : 'confidence-low';
-
-                  return (
-                    <div key={featureKey} className={`feature-analysis ${featureAnalysis.present ? 'present' : 'absent'}`}>
-                      <div className="feature-header">
-                        <div className="feature-name">
-                          <span>{featureAnalysis.present ? '✓' : '✗'}</span>
-                          {featureAnalysis.feature_name || feature}
-                        </div>
-                        <div className={`confidence-score ${confidenceClass}`}>
-                          {featureAnalysis.confidence || 'Unknown'} Confidence
-                        </div>
-                      </div>
-                      <div className="feature-details">
-                        <h4>Analysis Reasoning:</h4>
-                        <p>{featureAnalysis.reasoning || 'No reasoning provided'}</p>
-                        
-                        {featureAnalysis.relevant_claims && featureAnalysis.relevant_claims !== 'N/A' && (
-                          <>
-                            <h4>Relevant Claims:</h4>
-                            <div className="claims-found">
-                              <span className="claim-tag">{featureAnalysis.relevant_claims}</span>
-                            </div>
-                          </>
-                        )}
-                        
-                        {!featureAnalysis.relevant_claims && featureAnalysis.relevant_text && featureAnalysis.relevant_text !== 'N/A' && (
-                          <>
-                            <h4>Relevant Text:</h4>
-                            <div className="claims-found">
-                              <span className="claim-tag">{featureAnalysis.relevant_text}</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+      res.json({ success: true, results: formattedResults, features: featureNames });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch results', message: error.message });
+    }
+  }
 };
 
-export default Screening;
+app.post('/api/projects', authenticateUser, projectRoutes.create);
+app.get('/api/projects', authenticateUser, projectRoutes.list);
+app.post('/api/projects/:projectId/features', authenticateUser, featureRoutes.save);
+app.get('/api/projects/:projectId/features', authenticateUser, featureRoutes.get);
+app.post('/api/projects/:projectId/claims', authenticateUser, claimRoutes.save);
+app.get('/api/projects/:projectId/claims', authenticateUser, claimRoutes.get);
+app.post('/api/projects/:projectId/analyze', authenticateUser, analysisRoutes.analyze);
+app.get('/api/projects/:projectId/results', authenticateUser, analysisRoutes.getResults);
+
+app.post('/analyze-all-claims', (req, res) => {
+  res.status(400).json({
+    success: false,
+    error: 'Please update to the new authentication system',
+    message: 'This endpoint requires user authentication. Please log out and log back in.',
+    results: []
+  });
+});
+
+app.use((err, req, res, next) => {
+  res.status(500).json({ error: 'Internal server error', message: err.message });
+});
+
+app.get('*', (req, res) => {
+  const indexPaths = [
+    path.join(__dirname, 'public/index.html'),
+    path.join(__dirname, '../frontend/build/index.html'),
+    path.join(process.cwd(), 'frontend/build/index.html'),
+    '/app/frontend/build/index.html'
+  ];
+  
+  const indexPath = indexPaths.find(p => fs.existsSync(p));
+  
+  if (indexPath) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>FTO Patent Screening - Backend Running</title></head>
+        <body>
+          <h1>FTO Patent Screening Backend</h1>
+          <p>Backend server is running successfully</p>
+          <h3>Issue: Frontend build not found</h3>
+          <p>The React frontend build files are missing.</p>
+          <h3>System Status:</h3>
+          <ul>
+            <li>OpenAI API: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing'}</li>
+            <li>Supabase: ${process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Configured' : 'Missing'}</li>
+            <li>Build Path: ${buildPath ? 'Found at ' + buildPath : 'Not found'}</li>
+          </ul>
+        </body>
+      </html>
+    `);
+  }
+});
+
+app.listen(port, '0.0.0.0', () => {
+  // Server started
+});
