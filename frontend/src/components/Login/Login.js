@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail } from 'lucide-react';
-import { signIn, signUp, supabase } from '../../lib/supabase';
+import { Eye, EyeOff } from 'lucide-react';
+import { signIn } from '../../lib/supabase';
 import './Login.css';
 
-const PasswordInput = ({ value, onChange, onKeyPress, placeholder, show, onToggle, minLength }) => (
+const PasswordInput = ({ value, onChange, onKeyPress, placeholder, show, onToggle }) => (
   <div className="password-input-container">
     <input
       type={show ? 'text' : 'password'}
@@ -12,7 +12,6 @@ const PasswordInput = ({ value, onChange, onKeyPress, placeholder, show, onToggl
       onKeyPress={onKeyPress}
       placeholder={placeholder}
       className="form-input"
-      minLength={minLength}
       required
     />
     <button type="button" onClick={onToggle} className="password-toggle">
@@ -23,27 +22,18 @@ const PasswordInput = ({ value, onChange, onKeyPress, placeholder, show, onToggl
 
 const Login = ({ onLogin }) => {
   const [formState, setFormState] = useState({
-    email: '', password: '', confirmPassword: '', showPassword: false, showConfirmPassword: false,
-    isLoading: false, isSignUp: false, isForgotPassword: false, error: '', successMessage: ''
+    email: '',
+    password: '',
+    showPassword: false,
+    isLoading: false,
+    error: ''
   });
 
   const updateFormState = (updates) => setFormState(prev => ({ ...prev, ...updates }));
 
   const validateInputs = () => {
-    const { email, password, confirmPassword, isSignUp, isForgotPassword } = formState;
+    const { email, password } = formState;
     
-    if (isForgotPassword) {
-      if (!email) {
-        updateFormState({ error: 'Please enter your email address' });
-        return false;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        updateFormState({ error: 'Please enter a valid email address' });
-        return false;
-      }
-      return true;
-    }
-
     if (!email || !password) {
       updateFormState({ error: 'Please fill in all fields' });
       return false;
@@ -52,113 +42,71 @@ const Login = ({ onLogin }) => {
       updateFormState({ error: 'Please enter a valid email address' });
       return false;
     }
-
-    if (isSignUp) {
-      if (password.length < 6) {
-        updateFormState({ error: 'Password must be at least 6 characters long' });
-        return false;
-      }
-      if (!confirmPassword) {
-        updateFormState({ error: 'Please confirm your password' });
-        return false;
-      }
-      if (password !== confirmPassword) {
-        updateFormState({ error: 'Passwords do not match' });
-        return false;
-      }
-    }
     return true;
-  };
-
-  const checkEmailExists = async (email) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: 'dummy_check' });
-      return error?.message.includes('Invalid login credentials');
-    } catch { return false; }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!validateInputs()) return;
-    updateFormState({ isLoading: true, error: '' });
-    
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(formState.email);
-      updateFormState({
-        [error ? 'error' : 'successMessage']: error?.message || 'Password reset email sent! Check your inbox and follow the instructions.',
-        isLoading: false
-      });
-    } catch (error) {
-      updateFormState({ error: 'Failed to send reset email. Please try again.', isLoading: false });
-    }
   };
 
   const getErrorMessage = (error) => {
     const errorMap = {
       'Invalid login credentials': 'Invalid email or password. Please check your credentials and try again.',
       'Email not confirmed': 'Please check your email and click the confirmation link before signing in.',
-      'User already registered': 'This email is already registered. Please sign in instead.',
-      'Signup not allowed': 'New signups are currently disabled. Please contact support.'
+      'Too many requests': 'Too many sign-in attempts. Please wait a moment and try again.'
     };
-    return Object.keys(errorMap).find(key => error.message.includes(key)) ? errorMap[Object.keys(errorMap).find(key => error.message.includes(key))] : error.message;
+    
+    const foundKey = Object.keys(errorMap).find(key => error.message.includes(key));
+    return foundKey ? errorMap[foundKey] : 'Sign in failed. Please check your credentials and try again.';
   };
 
-  const handleAuth = async () => {
+  const handleSignIn = async () => {
     if (!validateInputs()) return;
-    updateFormState({ isLoading: true, error: '', successMessage: '' });
+    
+    updateFormState({ isLoading: true, error: '' });
     
     try {
-      if (formState.isSignUp && await checkEmailExists(formState.email)) {
-        return updateFormState({ error: 'This email is already registered. Please sign in instead or use a different email.', isLoading: false });
-      }
+      const { data, error } = await signIn(formState.email, formState.password);
 
-      const { data, error } = formState.isSignUp 
-        ? await signUp(formState.email, formState.password)
-        : await signIn(formState.email, formState.password);
-
-      if (error) return updateFormState({ error: getErrorMessage(error), isLoading: false });
-      if (!data?.user) return updateFormState({ error: 'Authentication failed. Please try again.', isLoading: false });
-
-      if (formState.isSignUp) {
+      if (error) {
         return updateFormState({ 
-          successMessage: 'Account created successfully! Please check your email to confirm your account before signing in.',
-          isLoading: false, isSignUp: false, password: '', confirmPassword: '', error: ''
+          error: getErrorMessage(error), 
+          isLoading: false 
+        });
+      }
+      
+      if (!data?.user) {
+        return updateFormState({ 
+          error: 'Authentication failed. Please try again.', 
+          isLoading: false 
         });
       }
 
       if (data.user && data.session) {
         onLogin({
-          user: data.user, session: data.session, email: data.user.email,
+          user: data.user,
+          session: data.session,
+          email: data.user.email,
           name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User'
         });
       } else {
-        updateFormState({ error: 'Authentication incomplete. Please try again.', isLoading: false });
+        updateFormState({ 
+          error: 'Authentication incomplete. Please try again.', 
+          isLoading: false 
+        });
       }
     } catch (error) {
-      updateFormState({ error: 'Authentication failed. Please check your connection and try again.', isLoading: false });
+      updateFormState({ 
+        error: 'Authentication failed. Please check your connection and try again.', 
+        isLoading: false 
+      });
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key !== 'Enter' || formState.isLoading) return;
-    const { email, password, confirmPassword, isSignUp, isForgotPassword } = formState;
-    
-    if (isForgotPassword ? email : email && password && (!isSignUp || confirmPassword)) {
-      isForgotPassword ? handleForgotPassword() : handleAuth();
+    if (e.key === 'Enter' && !formState.isLoading && formState.email && formState.password) {
+      handleSignIn();
     }
   };
 
-  const toggleMode = (mode) => {
-    const modes = {
-      authMode: { isSignUp: !formState.isSignUp, isForgotPassword: false, error: '', successMessage: '' },
-      forgotPassword: { isForgotPassword: !formState.isForgotPassword, isSignUp: false, error: '', successMessage: '' },
-      backToLogin: { isForgotPassword: false, isSignUp: false, error: '', successMessage: '' }
-    };
-    updateFormState(modes[mode]);
-  };
-
-  const isAuthDisabled = () => {
-    const { isLoading, email, password, confirmPassword, isSignUp, isForgotPassword } = formState;
-    return isLoading || (isForgotPassword ? !email : !email || !password || (isSignUp && !confirmPassword));
+  const isSignInDisabled = () => {
+    return formState.isLoading || !formState.email || !formState.password;
   };
 
   return (
@@ -167,17 +115,14 @@ const Login = ({ onLogin }) => {
         <div className="login-header">
           <h1 className="login-title">Welcome to FTOlyzer</h1>
           <p className="login-subtitle">
-            {formState.isForgotPassword 
-              ? 'Enter your email to reset your password'
-              : 'Analyze patent claims with smart features and confident clarity.'
-            }
+            Analyze patent claims with smart features and confident clarity.
           </p>
         </div>
 
         <div className="login-form">
-          {(formState.error || formState.successMessage) && (
-            <div className={formState.error ? "error-message" : "success-message"}>
-              {formState.error || formState.successMessage}
+          {formState.error && (
+            <div className="error-message">
+              {formState.error}
             </div>
           )}
 
@@ -194,82 +139,32 @@ const Login = ({ onLogin }) => {
             />
           </div>
 
-          {!formState.isForgotPassword && (
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <PasswordInput
-                value={formState.password}
-                onChange={(e) => updateFormState({ password: e.target.value })}
-                onKeyPress={handleKeyPress}
-                placeholder={formState.isSignUp ? "Choose a password (min 6 characters)" : "Enter your password"}
-                show={formState.showPassword}
-                onToggle={() => updateFormState({ showPassword: !formState.showPassword })}
-                minLength={formState.isSignUp ? 6 : undefined}
-              />
-            </div>
-          )}
-
-          {formState.isSignUp && !formState.isForgotPassword && (
-            <div className="form-group">
-              <label className="form-label">Confirm Password</label>
-              <PasswordInput
-                value={formState.confirmPassword}
-                onChange={(e) => updateFormState({ confirmPassword: e.target.value })}
-                onKeyPress={handleKeyPress}
-                placeholder="Confirm your password"
-                show={formState.showConfirmPassword}
-                onToggle={() => updateFormState({ showConfirmPassword: !formState.showConfirmPassword })}
-              />
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label">Password</label>
+            <PasswordInput
+              value={formState.password}
+              onChange={(e) => updateFormState({ password: e.target.value })}
+              onKeyPress={handleKeyPress}
+              placeholder="Enter your password"
+              show={formState.showPassword}
+              onToggle={() => updateFormState({ showPassword: !formState.showPassword })}
+            />
+          </div>
 
           <button
-            onClick={formState.isForgotPassword ? handleForgotPassword : handleAuth}
-            disabled={isAuthDisabled()}
-            className={`login-btn ${isAuthDisabled() ? 'disabled' : ''}`}
+            onClick={handleSignIn}
+            disabled={isSignInDisabled()}
+            className={`login-btn ${isSignInDisabled() ? 'disabled' : ''}`}
           >
             {formState.isLoading ? (
               <div className="loading-content">
                 <div className="spinner"></div>
-                {formState.isForgotPassword ? 'Sending Reset Email...' : 
-                 formState.isSignUp ? 'Creating Account...' : 'Signing In...'}
+                Signing In...
               </div>
             ) : (
-              <>
-                {formState.isForgotPassword && <Mail size={20} style={{ marginRight: '0.5rem' }} />}
-                {formState.isForgotPassword ? 'Send Reset Email' : 
-                 formState.isSignUp ? 'Create Account' : 'Sign In'}
-              </>
+              'Sign In'
             )}
           </button>
-        </div>
-
-        <div className="login-footer">
-          {formState.isForgotPassword ? (
-            <button className="auth-toggle-btn" onClick={() => toggleMode('backToLogin')} disabled={formState.isLoading}>
-              Back to Sign In
-            </button>
-          ) : (
-            <>
-              <button 
-                className="auth-toggle-btn"
-                onClick={() => toggleMode('authMode')}
-                disabled={formState.isLoading}
-                style={{ marginBottom: '0.5rem' }}
-              >
-                {formState.isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-              </button>
-              {!formState.isSignUp && (
-                <button 
-                  className="auth-toggle-btn forgot-password-btn"
-                  onClick={() => toggleMode('forgotPassword')}
-                  disabled={formState.isLoading}
-                >
-                  Forgot your password?
-                </button>
-              )}
-            </>
-          )}
         </div>
       </div>
     </div>

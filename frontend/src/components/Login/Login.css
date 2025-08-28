@@ -65,22 +65,11 @@ html, body {
   line-height: 1.5;
 }
 
-/* ===== ERROR & SUCCESS MESSAGES ===== */
+/* ===== ERROR MESSAGES ===== */
 .error-message {
   background-color: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  margin-bottom: 1.5rem;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.success-message {
-  background-color: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
@@ -206,48 +195,6 @@ html, body {
   to { transform: rotate(360deg); }
 }
 
-/* ===== FOOTER ===== */
-.login-footer {
-  margin-top: 1.25rem;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.auth-toggle-btn {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #2563eb;
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-decoration: none;
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-}
-
-.auth-toggle-btn:hover {
-  color: #1d4ed8;
-  background: rgba(37, 99, 235, 0.1);
-}
-
-.auth-toggle-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.forgot-password-btn {
-  font-size: 0.8rem;
-  color: #6b7280;
-  font-weight: 400;
-}
-
-.forgot-password-btn:hover {
-  color: #374151;
-}
-
 /* ===== RESPONSIVE DESIGN ===== */
 @media (max-width: 480px) {
   .login-container { 
@@ -266,10 +213,8 @@ html, body {
   .login-subtitle { font-size: 0.875rem; }
   .form-input { padding: 0.75rem; font-size: 0.95rem; }
   .login-btn { padding: 0.75rem; font-size: 0.95rem; }
-  .auth-toggle-btn { font-size: 0.8rem; }
   .login-form { gap: 0.875rem; }
   .login-header { margin-bottom: 1.25rem; }
-  .login-footer { margin-top: 1rem; }
 }
 
 @media (max-height: 700px) {
@@ -297,9 +242,6 @@ html, body {
   .login-subtitle {
     font-size: 0.875rem;
   }
-  .login-footer {
-    margin-top: 0.875rem;
-  }
 }
 
 @media (max-height: 600px) {
@@ -318,15 +260,11 @@ html, body {
   .login-form {
     gap: 0.625rem;
   }
-  .login-footer {
-    margin-top: 0.75rem;
-  }
   .login-title {
     font-size: 1.375rem;
   }
 }
 
-/* ===== VERY SMALL SCREENS ===== */
 @media (max-height: 500px) {
   .login-container {
     align-items: flex-start;
