@@ -194,37 +194,38 @@ body.dark-mode .home-modal-title {
 }
 
 .home-modal-close {
-  background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
-  border: 1px solid rgba(209, 213, 219, 0.5);
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
   cursor: pointer;
   color: #6b7280;
   padding: 0.5rem;
-  border-radius: 8px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  width: 32px;
-  height: 32px;
+  font-size: 1.25rem;
+  font-weight: bold;
 }
 
 .home-modal-close:hover {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background-color: var(--error-red);
   color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  border-color: var(--error-red);
 }
 
 body.dark-mode .home-modal-close {
-  background: linear-gradient(135deg, #374151, #4b5563);
-  border-color: rgba(107, 114, 128, 0.5);
-  color: #9ca3af;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  color: #6b7280;
 }
 
 body.dark-mode .home-modal-close:hover {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background-color: var(--error-red);
   color: white;
+  border-color: var(--error-red);
 }
 
 .home-modal-body {
