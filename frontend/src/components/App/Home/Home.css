@@ -101,19 +101,19 @@ body.dark-mode .card-description { color: #d1d5db; }
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, rgba(0, 0, 0, 0.3), rgba(15, 23, 42, 0.4));
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 1100;
   padding: 2rem;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(4px);
   animation: homeModalOverlayFadeIn 0.3s ease-out;
 }
 
 @keyframes homeModalOverlayFadeIn {
   from { opacity: 0; backdrop-filter: blur(0px); }
-  to { opacity: 1; backdrop-filter: blur(20px); }
+  to { opacity: 1; backdrop-filter: blur(4px); }
 }
 
 .home-modal-content {
