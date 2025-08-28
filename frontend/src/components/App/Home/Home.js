@@ -186,18 +186,18 @@ const Home = ({ onNavigate }) => {
       </div>
 
       {activeModal && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-title-section">
+        <div className="home-modal-overlay" onClick={closeModal}>
+          <div className="home-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="home-modal-header">
+              <div className="home-modal-title-section">
                 {modalData[activeModal].icon}
-                <h2 className="modal-title">{modalData[activeModal].title}</h2>
+                <h2 className="home-modal-title">{modalData[activeModal].title}</h2>
               </div>
-              <button className="modal-close" onClick={closeModal}>
+              <button className="home-modal-close" onClick={closeModal}>
                 <X size={24} />
               </button>
             </div>
-            <div className="modal-body">
+            <div className="home-modal-body">
               <div dangerouslySetInnerHTML={{ __html: modalData[activeModal].content }} />
             </div>
           </div>
