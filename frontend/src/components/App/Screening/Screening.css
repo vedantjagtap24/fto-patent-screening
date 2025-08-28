@@ -335,6 +335,7 @@ body.dark-mode .rank-none { background-color: #4b5563; }
   background: var(--bg-primary); border-radius: 1rem; max-width: 1200px; width: 95%;
   max-height: 85vh; box-shadow: var(--shadow-md); animation: modalSlideIn 0.3s ease-out;
   display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color);
+  padding: 0;
 }
 
 .modal-header {
