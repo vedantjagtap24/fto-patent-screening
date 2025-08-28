@@ -271,6 +271,7 @@ body.dark-mode .table-header .feature-highlight {
 
 .publication-link:hover { 
   color: #1d4ed8; 
+  background-color: #dbeafe; 
   text-decoration: underline; 
 }
 .publication-link:visited { color: #7c3aed; }
@@ -318,6 +319,7 @@ body.dark-mode .rank-none { background-color: #4b5563; }
   width: 32px; height: 32px; margin: 0 auto;
 }
 
+/* FIXED: Remove blue hover effect */
 .details-btn:hover:not(:disabled) {
   transform: translateY(-1px); 
   box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
@@ -328,7 +330,7 @@ body.dark-mode .rank-none { background-color: #4b5563; }
   background: #9ca3af; cursor: not-allowed; transform: none; box-shadow: none;
 }
 
-/* ===== MODAL STYLES ===== */
+/* ===== MODAL STYLES - FIXED WIDTH ===== */
 .modal-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5);
   z-index: 1100; backdrop-filter: blur(4px); animation: modalOverlayFadeIn 0.3s ease-out;
@@ -336,7 +338,7 @@ body.dark-mode .rank-none { background-color: #4b5563; }
 }
 
 .modal {
-  background: var(--bg-primary); border-radius: 1rem; max-width: 1400px; width: 98%;
+  background: var(--bg-primary); border-radius: 1rem; max-width: 1200px; width: 95%;
   max-height: 85vh; box-shadow: var(--shadow-md); animation: modalSlideIn 0.3s ease-out;
   display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color);
 }
