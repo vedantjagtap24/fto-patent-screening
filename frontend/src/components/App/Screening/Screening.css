@@ -500,10 +500,7 @@ body.dark-mode .claim-tag { background: #1e3a8a; color: #93c5fd; }
 }
 
 /* ===== LAYOUT ===== */
-.module-content {
-  padding-bottom: clamp(24px, 4vh, 72px);
-}
-
+.module-content { width: 100%; max-width: 1200px; }
 
 .section {
   background-color: var(--bg-primary); border-radius: 1rem; box-shadow: var(--shadow-sm);
