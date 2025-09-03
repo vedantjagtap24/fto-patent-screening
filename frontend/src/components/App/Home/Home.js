@@ -16,7 +16,7 @@ const Home = ({ onNavigate }) => {
           <li><strong>Large-scale Patent Processing:</strong> Automated analysis of thousands of patent documents simultaneously</li>
           <li><strong>AI-Driven Classification:</strong> Machine learning algorithms categorize and prioritize patent claims based on relevance</li>
           <li><strong>Risk Assessment:</strong> Quantitative scoring of potential infringement risks across different technology areas</li>
-          <li><strong>Competitive Intelligence:</strong> Identification of key players and their patent portfolios in your technology space</li>
+          <li><strong>Patent Conflict Identification:</strong> Automated identification of patents that pose potential infringement risks based on claim comparison and technical feature matching</li>
         </ul>
         <p>The system is designed to handle complex patent landscapes efficiently, reducing the time from months to days for comprehensive FTO studies.</p>
       `
@@ -31,7 +31,6 @@ const Home = ({ onNavigate }) => {
           <li><strong>Technology Mapping:</strong> Systematic mapping of your product features against existing patent claims</li>
           <li><strong>Jurisdictional Coverage:</strong> Analysis across multiple patent offices including USPTO, EPO, JPO, and others</li>
           <li><strong>Prior Art Discovery:</strong> Identification of relevant prior art that could affect patent validity</li>
-          <li><strong>White Space Analysis:</strong> Discovery of areas with limited patent coverage for future innovation</li>
         </ul>
         <p>The system prioritizes patents based on claim strength, enforceability, and commercial relevance to your specific use case.</p>
       `
@@ -45,9 +44,7 @@ const Home = ({ onNavigate }) => {
         <ul>
           <li><strong>Natural Language Processing:</strong> Advanced NLP techniques to understand patent claim language and technical descriptions</li>
           <li><strong>Feature Extraction:</strong> Automated identification of key technical features from your product specifications</li>
-          <li><strong>Semantic Matching:</strong> AI-powered semantic analysis to find conceptually similar patents beyond keyword matching</li>
           <li><strong>Visual Patent Analysis:</strong> Processing of patent diagrams and figures for comprehensive comparison</li>
-          <li><strong>Technology Taxonomy:</strong> Classification using international patent classification systems (IPC, CPC)</li>
         </ul>
         <p>The feature recognition system continuously learns and improves its accuracy through machine learning feedback loops.</p>
       `
@@ -62,7 +59,6 @@ const Home = ({ onNavigate }) => {
           <li><strong>Multi-Stage Filtering:</strong> Progressive filtering from broad searches to highly relevant results</li>
           <li><strong>Similarity Scoring:</strong> Advanced algorithms calculate similarity scores based on technical features, claims, and descriptions</li>
           <li><strong>Risk Stratification:</strong> Patents are categorized into high, medium, and low risk categories</li>
-          <li><strong>Claim Chart Generation:</strong> Automated generation of preliminary claim charts for high-risk patents</li>
           <li><strong>Validity Assessment:</strong> AI-assisted evaluation of patent strength and potential invalidity arguments</li>
         </ul>
         <p>The methodology is continuously validated against expert legal opinions to ensure accuracy and reliability.</p>
@@ -75,7 +71,7 @@ const Home = ({ onNavigate }) => {
         <h3>Multi-Database Patent Intelligence</h3>
         <p>Our search strategy leverages multiple data sources and search techniques:</p>
         <ul>
-          <li><strong>Database Coverage:</strong> Integration with major patent databases including Google Patents, USPTO, Espacenet, WIPO, and commercial databases</li>
+          <li><strong>Database Coverage:</strong> Multi-Database Patent Intelligence (Beta Phase)</li>
           <li><strong>Search Optimization:</strong> Combination of keyword searches, classification code searches, and inventor/assignee searches</li>
           <li><strong>Boolean Logic:</strong> Advanced boolean search strategies with proximity operators and field-specific searches</li>
           <li><strong>Citation Analysis:</strong> Forward and backward citation analysis to discover related patents</li>
@@ -92,7 +88,7 @@ const Home = ({ onNavigate }) => {
         <p>Important considerations and limitations of automated patent analysis:</p>
         <ul>
           <li><strong>Legal Expertise Required:</strong> Final infringement determinations must be made by qualified patent attorneys</li>
-          <li><strong>Claim Construction:</strong> Patent claim interpretation may vary and requires legal analysis</li>
+          <li><strong>Claim Interpretation:</strong> Patent claim interpretation may vary and requires legal analysis</li>
           <li><strong>Jurisdictional Variations:</strong> Patent laws and enforcement practices differ across jurisdictions</li>
           <li><strong>Data Currency:</strong> Patent databases may have delays in updating; recent applications might not be captured</li>
           <li><strong>False Positives:</strong> Automated systems may flag patents that upon legal review pose minimal risk</li>
