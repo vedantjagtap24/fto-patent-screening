@@ -481,30 +481,28 @@
   text-align: center;
 }
 
-.login-credit {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.25rem 0.5rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
+.login-footer {
+  position: relative;
+  padding: 0 1rem 1.5rem;
   font-size: 13px;
-  color: var(--text-2);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.75);
 }
 
-.login-credit strong {
+.login-footer strong {
   font-weight: 600;
-  color: var(--text);
+  color: #fff;
 }
 
-.login-credit a {
-  color: var(--accent-text);
-  text-decoration: none;
-}
-
-.login-credit a:hover {
+.login-footer a {
+  color: #fff;
   text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.45);
+  text-underline-offset: 2px;
+}
+
+.login-footer a:hover {
+  text-decoration-color: #fff;
 }
 
 .spinner {

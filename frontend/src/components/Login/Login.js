@@ -224,13 +224,13 @@ const Login = ({ onLogin }) => {
           </div>
 
           <p className="login-disclaimer">Preliminary analysis only. Final conclusions should be reviewed by patent counsel.</p>
-
-          <p className="login-credit">
-            Developed by <strong>Vedant Jagtap</strong>
-            <a href="mailto:vsj7589@nyu.edu">vsj7589@nyu.edu</a>
-          </p>
         </main>
       </div>
+
+      <footer className="login-footer">
+        Developed by <strong>Vedant Jagtap</strong> ·{' '}
+        <a href="mailto:vsj7589@nyu.edu">vsj7589@nyu.edu</a>
+      </footer>
     </div>
   );
 };
