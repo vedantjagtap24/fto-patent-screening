@@ -7,7 +7,7 @@ const Screening = ({
   backendStatus, file, setFile, claims, setClaims, isProcessing, progress, results, error, setError,
   processedCount, currentlyProcessing, elapsedTime, features, addFeature, removeFeature,
   startBulkScreening, resumeAnalysis, cancelAnalysis, clearAllData, formatElapsedTime, notice,
-  progressTotal, etaMs, resumable, runFailed, lastFailure
+  progressTotal, etaMs, resumable, runFailed, lastFailure, throttled
 }) => {
   const [uiState, setUiState] = useState({
     searchTerm: '', currentPage: 1, selectedRankFilter: null, selectedFeatureFilter: null,
@@ -411,6 +411,11 @@ const Screening = ({
               <div className="progress-fill" style={{ width: `${progress}%` }} />
             </div>
             {currentlyProcessing && <p className="progress-current">{currentlyProcessing}</p>}
+            {throttled && (
+              <p className="progress-current">
+                OpenAI's per-minute limit was reached, so requests are pacing themselves. Nothing fails because of this.
+              </p>
+            )}
             {runFailed > 0 && failedReason && (
               <p className="progress-failure">
                 <AlertCircle size={14} />

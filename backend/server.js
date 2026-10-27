@@ -229,7 +229,8 @@ IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not 
       { role: 'system', content: 'You are a patent analysis expert. Always respond with valid JSON. For relevant_claims, provide only claim numbers, not full text.' },
       { role: 'user', content: prompt }
     ],
-    max_tokens: 2000,
+    // OpenAI counts max_tokens against the per-minute limit, so reserve only what the answer needs
+    max_tokens: Math.min(2000, 200 + 200 * features.length),
     temperature: 0.1,
     response_format: { type: 'json_object' }
   });
@@ -283,6 +284,20 @@ const failedAnalysis = (featureNames, reason) => {
   return analysis;
 };
 
+const isOutOfCredit = (error) =>
+  error?.code === 'insufficient_quota' ||
+  /no credits remaining|exceeded your current quota|billing/i.test(error?.error?.message || error?.message || '');
+
+const isRateLimited = (error) => error?.status === 429 && !isOutOfCredit(error);
+
+// How long OpenAI asked us to wait, plus jitter so workers don't all retry at once
+const rateLimitDelay = (error) => {
+  const headers = error?.headers || {};
+  const asked = Number(headers['retry-after-ms']) || Number(headers['retry-after']) * 1000 || 1000;
+  return Math.min(Math.max(asked, 500), 30000) + Math.random() * 1000;
+};
+const MAX_RATE_LIMIT_WAITS = 30;
+
 const isFailedRow = (row) => !!row.detailed_analysis?.feature_1?.reasoning?.startsWith(FAILED_PREFIX);
 
 // Analyses running in this server process, keyed by project id. A project marked
@@ -321,13 +336,27 @@ async function runAnalysis(projectId, run, resume) {
     // A pool of workers each pull the next claim as soon as they finish one,
     // so a slow claim only holds up its own worker
     let next = 0;
+    // Hitting the per-minute speed limit isn't a failure: wait as asked and try again
+    const analyzeWithBackoff = async (claim) => {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
+        } catch (error) {
+          if (!isRateLimited(error) || attempt >= MAX_RATE_LIMIT_WAITS || run.cancelled) throw error;
+          run.throttledAt = Date.now();
+          await new Promise(resolve => setTimeout(resolve, rateLimitDelay(error)));
+        }
+      }
+    };
+
     const worker = async () => {
       while (!run.cancelled && next < claims.length) {
         const claim = claims[next++];
         try {
-          const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
+          const analysis = await analyzeWithBackoff(claim);
           await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
         } catch (error) {
+          if (run.cancelled && isRateLimited(error)) return;
           const reason = describeError(error);
           run.failed += 1;
           run.lastFailure = reason;
@@ -335,7 +364,7 @@ async function runAnalysis(projectId, run, resume) {
             console.error(`Claim ${claim.claim_number} failed (${run.failed} so far):`, reason);
           }
 
-          if (error?.code === 'insufficient_quota') {
+          if (isOutOfCredit(error)) {
             // Every remaining claim would fail the same way, so stop here
             run.cancelled = true;
             runErrors.set(projectId, 'Your OpenAI account has run out of credit. Add credit, then click Resume to continue.');
@@ -435,6 +464,8 @@ const analysisRoutes = {
         // Failures in the run that is going now, with the most recent reason
         failed: run?.failed || 0,
         lastFailure: run?.lastFailure || null,
+        // True while OpenAI's speed limit is making workers wait
+        throttled: !!run?.throttledAt && Date.now() - run.throttledAt < 15000,
         message: runErrors.get(projectId)
       });
     } catch (error) {

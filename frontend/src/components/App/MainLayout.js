@@ -34,7 +34,8 @@ const MainLayout = ({ user, session, onLogout }) => {
     etaMs: null,
     resumable: false,
     runFailed: 0,
-    lastFailure: null
+    lastFailure: null,
+    throttled: false
   });
   const cancelRequested = useRef(false);
   // Where the time-remaining estimate is measured from; excludes upload time
@@ -110,7 +111,7 @@ const MainLayout = ({ user, session, onLogout }) => {
         const data = await apiCall(`/api/projects/${projectId}/status`);
         if (cancelled) return;
 
-        const { status, processed, total, failed, lastFailure } = data;
+        const { status, processed, total, failed, lastFailure, throttled } = data;
         if (status === 'processing' || status === 'cancelling') {
           const now = Date.now();
           if (!rateStart.current) rateStart.current = { time: now, processed };
@@ -132,6 +133,7 @@ const MainLayout = ({ user, session, onLogout }) => {
             progressTotal: total,
             runFailed: failed || 0,
             lastFailure: lastFailure || null,
+            throttled: !!throttled,
             etaMs,
             currentlyProcessing: status === 'cancelling'
               ? 'Cancelling after the claims in progress finish…'
