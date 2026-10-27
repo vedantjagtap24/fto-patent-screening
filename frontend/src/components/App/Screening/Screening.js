@@ -6,7 +6,8 @@ import './Screening.css';
 const Screening = ({ 
   backendStatus, file, setFile, claims, setClaims, isProcessing, progress, results, error, setError,
   processedCount, currentlyProcessing, elapsedTime, features, addFeature, removeFeature,
-  startBulkScreening, cancelAnalysis, clearAllData, formatElapsedTime, notice
+  startBulkScreening, resumeAnalysis, cancelAnalysis, clearAllData, formatElapsedTime, notice,
+  progressTotal, etaMs, resumable
 }) => {
   const [uiState, setUiState] = useState({
     searchTerm: '', currentPage: 1, selectedRankFilter: null, selectedFeatureFilter: null,
@@ -367,10 +368,22 @@ const Screening = ({
                 Cancel
               </button>
             )}
-            <button onClick={startBulkScreening} disabled={!canStart} className="btn btn-primary btn-lg">
-              <Play size={16} />
-              {isProcessing ? 'Analyzing…' : 'Start analysis'}
-            </button>
+            {resumable && !isProcessing ? (
+              <>
+                <button onClick={startBulkScreening} disabled={!canStart} className="btn btn-secondary btn-lg">
+                  Start from scratch
+                </button>
+                <button onClick={resumeAnalysis} disabled={backendStatus !== 'connected'} className="btn btn-primary btn-lg">
+                  <Play size={16} />
+                  Resume ({processedCount} of {progressTotal} done)
+                </button>
+              </>
+            ) : (
+              <button onClick={startBulkScreening} disabled={!canStart} className="btn btn-primary btn-lg">
+                <Play size={16} />
+                {isProcessing ? 'Analyzing…' : 'Start analysis'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -378,12 +391,10 @@ const Screening = ({
           <div className="progress">
             <div className="progress-row">
               <span className="progress-percent">{Math.round(progress)}%</span>
-              <span className="progress-label">{processedCount} of {claims.length} patents analyzed</span>
+              <span className="progress-label">{processedCount} of {progressTotal || claims.length} patents analyzed</span>
               <span className="progress-time">
                 <Clock size={14} /> {formatElapsedTime(elapsedTime)}
-                {processedCount > 0 && processedCount < claims.length && (
-                  <> · about {formatElapsedTime((elapsedTime / processedCount) * (claims.length - processedCount))} left</>
-                )}
+                {etaMs != null && <> · about {formatElapsedTime(etaMs)} left</>}
               </span>
             </div>
             <div className="progress-track">

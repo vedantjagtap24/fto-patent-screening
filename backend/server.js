@@ -9,7 +9,10 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || process.env.RAILWAY_PORT || 3001;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 6 });
+// A request that hangs is abandoned after 90s and retried, so one claim can't stall a run
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 6, timeout: 90 * 1000 });
+// How many claims are sent to OpenAI at once; the account's rate limit is the real ceiling
+const ANALYSIS_CONCURRENCY = Number(process.env.ANALYSIS_CONCURRENCY) || 25;
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -258,6 +261,8 @@ async function saveAnalysisResults(projectId, claimId, features, analysisResult)
   return { rank, featureCount };
 }
 
+const FAILED_REASONING = "Analysis failed - unable to process claim";
+
 const failedAnalysis = (featureNames) => {
   const analysis = {};
   featureNames.forEach((feature, index) => {
@@ -265,35 +270,64 @@ const failedAnalysis = (featureNames) => {
       feature_name: feature,
       present: false,
       confidence: "Low",
-      reasoning: "Analysis failed - unable to process claim",
+      reasoning: FAILED_REASONING,
       relevant_claims: "N/A"
     };
   });
   return analysis;
 };
 
+const isFailedRow = (row) => row.detailed_analysis?.feature_1?.reasoning === FAILED_REASONING;
+
 // Analyses running in this server process, keyed by project id. A project marked
 // 'processing' that isn't in here was interrupted (e.g. by a redeploy).
 const activeRuns = new Map();
+// Why the last run of a project stopped early, shown to the user via /status
+const runErrors = new Map();
+
+// Claims that still need analyzing. When resuming, keep finished results but
+// drop failed ones so they get another try.
+async function pendingClaims(projectId, claims, resume) {
+  if (!resume) return claims;
+
+  const done = await fetchAll(
+    () => supabase.from('analysis_summary').select('claim_id, detailed_analysis').eq('project_id', projectId).order('claim_id', { ascending: true })
+  );
+  const failedIds = done.filter(isFailedRow).map(row => row.claim_id);
+  for (let i = 0; i < failedIds.length; i += 200) {
+    await supabase.from('analysis_summary').delete().eq('project_id', projectId).in('claim_id', failedIds.slice(i, i + 200));
+  }
+
+  const finished = new Set(done.filter(row => !isFailedRow(row)).map(row => row.claim_id));
+  return claims.filter(claim => !finished.has(claim.id));
+}
 
 // Runs after the HTTP response has been sent; progress is read back via /status
-async function runAnalysis(projectId, run) {
+async function runAnalysis(projectId, run, resume) {
   try {
-    const [features, claims] = await Promise.all([
+    const [features, allClaims] = await Promise.all([
       fetchAll(() => supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true })),
       fetchAll(() => supabase.from('patent_claims').select('id, claim_number, claims_text').eq('project_id', projectId).order('claim_number', { ascending: true }))
     ]);
     const featureNames = features.map(f => f.name);
-    const batchSize = 10;
+    const claims = await pendingClaims(projectId, allClaims, resume);
 
-    for (let i = 0; i < claims.length && !run.cancelled; i += batchSize) {
-      const batch = claims.slice(i, i + batchSize);
-
-      await Promise.all(batch.map(async (claim) => {
+    // A pool of workers each pull the next claim as soon as they finish one,
+    // so a slow claim only holds up its own worker
+    let next = 0;
+    const worker = async () => {
+      while (!run.cancelled && next < claims.length) {
+        const claim = claims[next++];
         try {
           const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
           await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
         } catch (error) {
+          if (error?.code === 'insufficient_quota') {
+            // Every remaining claim would fail the same way, so stop here
+            run.cancelled = true;
+            runErrors.set(projectId, 'Your OpenAI account has run out of credit. Add credit, then click Resume to continue.');
+            return;
+          }
           // Record the failure so the claim still shows up and progress keeps counting
           await supabase.from('analysis_summary').insert([{
             project_id: projectId,
@@ -304,20 +338,18 @@ async function runAnalysis(projectId, run) {
             detailed_analysis: failedAnalysis(featureNames)
           }]);
         }
-      }));
-
-      if (i + batchSize < claims.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(ANALYSIS_CONCURRENCY, claims.length) }, worker));
 
-    // A cancelled run goes back to draft; its partial results stay viewable
+    // A stopped run goes back to draft; its partial results stay viewable and resumable
     await supabase.from('projects').update({ 
-      status: run.cancelled ? 'draft' : 'completed',
+      status: runErrors.has(projectId) ? 'error' : run.cancelled ? 'draft' : 'completed',
       updated_at: new Date().toISOString()
     }).eq('id', projectId);
   } catch (error) {
     console.error('Analysis failed for project', projectId, error);
+    runErrors.set(projectId, 'The analysis stopped because of a server error. Click Resume to continue.');
     await supabase.from('projects').update({ status: 'error' }).eq('id', projectId);
   } finally {
     activeRuns.delete(projectId);
@@ -333,6 +365,7 @@ const countRows = async (table, projectId) => {
 const analysisRoutes = {
   analyze: async (req, res) => {
     const { projectId } = req.params;
+    const resume = !!req.body?.resume;
 
     if (activeRuns.has(projectId)) {
       return res.status(409).json({ error: 'An analysis is already running for this project' });
@@ -348,14 +381,17 @@ const analysisRoutes = {
         return res.status(400).json({ error: 'No features or claims found for this project' });
       }
 
-      // Clear results from any earlier run so they are not duplicated
-      await supabase.from('analysis_summary').delete().eq('project_id', projectId);
+      // A fresh run clears earlier results so they are not duplicated; a resume keeps them
+      if (!resume) {
+        await supabase.from('analysis_summary').delete().eq('project_id', projectId);
+      }
       await supabase.from('projects').update({ status: 'processing' }).eq('id', projectId);
 
       const run = { cancelled: false };
       activeRuns.set(projectId, run);
+      runErrors.delete(projectId);
       res.status(202).json({ success: true, started: true, total: claimCount });
-      runAnalysis(projectId, run);
+      runAnalysis(projectId, run, resume);
     } catch (error) {
       res.status(500).json({ success: false, error: 'Failed to start analysis', message: error.message });
     }
@@ -378,7 +414,13 @@ const analysisRoutes = {
       }
 
       const run = activeRuns.get(projectId);
-      res.json({ success: true, status: run?.cancelled ? 'cancelling' : project.status, processed, total });
+      res.json({
+        success: true,
+        status: run?.cancelled ? 'cancelling' : project.status,
+        processed,
+        total,
+        message: runErrors.get(projectId)
+      });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch status', message: error.message });
     }
@@ -389,7 +431,7 @@ const analysisRoutes = {
     const run = activeRuns.get(projectId);
 
     if (run) {
-      // The loop stops after the current batch of claims
+      // Workers stop once their current claim finishes
       run.cancelled = true;
     } else {
       await supabase.from('projects').update({ status: 'draft' }).eq('id', projectId).eq('status', 'processing');

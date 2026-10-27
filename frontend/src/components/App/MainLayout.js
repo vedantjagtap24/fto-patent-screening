@@ -29,9 +29,14 @@ const MainLayout = ({ user, session, onLogout }) => {
     startTime: null,
     elapsedTime: 0,
     phase: null,
-    notice: ''
+    notice: '',
+    progressTotal: 0,
+    etaMs: null,
+    resumable: false
   });
   const cancelRequested = useRef(false);
+  // Where the time-remaining estimate is measured from; excludes upload time
+  const rateStart = useRef(null);
 
   // Effects (consolidated)
   useEffect(() => {
@@ -65,6 +70,31 @@ const MainLayout = ({ user, session, onLogout }) => {
     return () => clearInterval(interval);
   }, [appState.isProcessing, appState.startTime]);
 
+  // A run that is no longer going: show the results so far and offer to resume
+  const showStoppedRun = async (id, { status, processed, total, message }) => {
+    const resultsData = processed > 0 ? await apiCall(`/api/projects/${id}/results`) : { results: [] };
+    const results = resultsData.results || [];
+    const finished = status === 'completed';
+    const notices = {
+      draft: `Analysis cancelled after ${processed} of ${total} patents. Click Resume to continue where it stopped.`,
+      interrupted: `Your analysis was interrupted (the server restarted) after ${processed} of ${total} patents. Click Resume to continue where it stopped.`,
+      error: message || `The analysis stopped after ${processed} of ${total} patents. Click Resume to continue.`
+    };
+
+    updateAppState({
+      results,
+      progress: finished ? 100 : (total ? Math.round((processed / total) * 100) : 0),
+      processedCount: processed,
+      progressTotal: total,
+      currentlyProcessing: finished ? 'Analysis complete' : '',
+      isProcessing: false,
+      phase: null,
+      etaMs: null,
+      resumable: !finished && total > 0 && processed < total,
+      notice: finished ? '' : notices[status] || ''
+    });
+  };
+
   // While the server analyzes in the background, poll its real progress
   const projectId = appState.currentProject?.id;
   useEffect(() => {
@@ -77,42 +107,25 @@ const MainLayout = ({ user, session, onLogout }) => {
         if (cancelled) return;
 
         const { status, processed, total } = data;
-        const progress = total ? Math.min(99, Math.round((processed / total) * 100)) : 0;
+        if (status === 'processing' || status === 'cancelling') {
+          const now = Date.now();
+          if (!rateStart.current) rateStart.current = { time: now, processed };
+          const doneSinceStart = processed - rateStart.current.processed;
+          const etaMs = doneSinceStart > 0
+            ? ((now - rateStart.current.time) / doneSinceStart) * (total - processed)
+            : null;
 
-        if (status === 'completed' || status === 'draft') {
-          // 'draft' means the run was cancelled: show what finished before that
-          const resultsData = await apiCall(`/api/projects/${projectId}/results`);
-          if (cancelled) return;
-          const results = resultsData.results || [];
           updateAppState({
-            results,
-            progress: status === 'completed' ? 100 : progress,
-            processedCount: status === 'completed' ? total : processed,
-            currentlyProcessing: status === 'completed' ? 'Analysis complete' : '',
-            isProcessing: false,
-            phase: null,
-            notice: status === 'draft'
-              ? `Analysis cancelled. ${results.length} of ${total} patents were analyzed before it stopped.`
-              : ''
-          });
-        } else if (status === 'interrupted') {
-          updateAppState({
-            isProcessing: false,
-            phase: null,
-            progress: 0,
-            currentlyProcessing: '',
-            notice: 'Your previous analysis was interrupted when the server restarted. Upload your file and click Start analysis to run it again.'
-          });
-        } else if (status === 'cancelling') {
-          updateAppState({ progress, processedCount: processed, currentlyProcessing: 'Cancelling after the current batch…' });
-        } else if (status === 'error') {
-          updateAppState({ isProcessing: false, phase: null, error: 'The analysis stopped because of a server error. Please try again.' });
-        } else {
-          updateAppState({
-            progress,
+            progress: total ? Math.min(99, Math.round((processed / total) * 100)) : 0,
             processedCount: processed,
-            currentlyProcessing: `Analyzing patent ${Math.min(processed + 1, total)} of ${total}…`
+            progressTotal: total,
+            etaMs,
+            currentlyProcessing: status === 'cancelling'
+              ? 'Cancelling after the claims in progress finish…'
+              : `Analyzing patent ${Math.min(processed + 1, total)} of ${total}…`
           });
+        } else {
+          await showStoppedRun(projectId, data);
         }
       } catch (error) {
         console.error('Status check failed:', error);
@@ -186,25 +199,21 @@ const MainLayout = ({ user, session, onLogout }) => {
           ...c.raw_data
         })) : [];
         
-        // Load analysis results if project is completed
-        let results = [];
-        if (latestProject.status === 'completed') {
-          const resultsData = await apiCall(`/api/projects/${latestProject.id}/results`);
-          if (resultsData.success) {
-            results = resultsData.results;
-          }
-        }
-
         setAppState(prev => ({
           ...prev,
           currentProject: latestProject,
           features,
-          claims,
-          results,
-          isProcessing: latestProject.status === 'processing',
-          phase: latestProject.status === 'processing' ? 'analyzing' : null,
-          startTime: latestProject.status === 'processing' ? Date.now() : null
+          claims
         }));
+
+        // A run still going is picked up by polling; otherwise show its results
+        const statusData = await apiCall(`/api/projects/${latestProject.id}/status`);
+        if (statusData.status === 'processing') {
+          rateStart.current = null;
+          updateAppState({ isProcessing: true, phase: 'analyzing', startTime: Date.now(), elapsedTime: 0 });
+        } else if (statusData.processed > 0 || statusData.status === 'interrupted') {
+          await showStoppedRun(latestProject.id, statusData);
+        }
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -229,7 +238,7 @@ const MainLayout = ({ user, session, onLogout }) => {
   const addFeature = (featureText) => {
     const trimmed = featureText.trim();
     if (trimmed && !appState.features.includes(trimmed)) {
-      updateAppState({ features: [...appState.features, trimmed] });
+      updateAppState({ features: [...appState.features, trimmed], resumable: false });
       return true;
     }
     return false;
@@ -237,7 +246,8 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   const removeFeature = (index) => {
     updateAppState({ 
-      features: appState.features.filter((_, i) => i !== index) 
+      features: appState.features.filter((_, i) => i !== index),
+      resumable: false
     });
   };
 
@@ -294,11 +304,15 @@ const MainLayout = ({ user, session, onLogout }) => {
 
     const total = appState.claims.length;
     cancelRequested.current = false;
+    rateStart.current = null;
     updateAppState({
       isProcessing: true,
       phase: 'uploading',
       error: '',
       notice: '',
+      resumable: false,
+      etaMs: null,
+      progressTotal: total,
       results: [],
       startTime: Date.now(),
       elapsedTime: 0,
@@ -346,6 +360,30 @@ const MainLayout = ({ user, session, onLogout }) => {
     }
   };
 
+  // Continue a stopped run on the server, keeping the results it already has
+  const resumeAnalysis = async () => {
+    if (!appState.currentProject) return;
+
+    cancelRequested.current = false;
+    rateStart.current = null;
+    try {
+      await apiCall(`/api/projects/${appState.currentProject.id}/analyze`, 'POST', { resume: true });
+      updateAppState({
+        isProcessing: true,
+        phase: 'analyzing',
+        error: '',
+        notice: '',
+        resumable: false,
+        etaMs: null,
+        startTime: Date.now(),
+        elapsedTime: 0,
+        currentlyProcessing: 'Resuming…'
+      });
+    } catch (error) {
+      updateAppState({ error: `Could not resume: ${error.message}` });
+    }
+  };
+
   const cancelAnalysis = async () => {
     cancelRequested.current = true;
     updateAppState({ currentlyProcessing: 'Cancelling…' });
@@ -375,7 +413,10 @@ const MainLayout = ({ user, session, onLogout }) => {
       features: [],
       isProcessing: false,
       phase: null,
-      notice: ''
+      notice: '',
+      progressTotal: 0,
+      etaMs: null,
+      resumable: false
     });
   };
 
@@ -396,11 +437,12 @@ const MainLayout = ({ user, session, onLogout }) => {
       backendStatus,
       ...appState,
       setFile: (file) => updateAppState({ file }),
-      setClaims: (claims) => updateAppState({ claims }),
+      setClaims: (claims) => updateAppState({ claims, resumable: false }),
       setError: (error) => updateAppState({ error }),
       addFeature,
       removeFeature,
       startBulkScreening,
+      resumeAnalysis,
       cancelAnalysis,
       clearAllData,
       formatElapsedTime
