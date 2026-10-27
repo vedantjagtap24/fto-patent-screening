@@ -707,8 +707,9 @@ body.dark-mode .rank-3 { color: #facc15; }
   color: var(--text-3);
 }
 
-.locked-modal {
-  max-width: 460px;
+/* Doubled class beats .modal's width, which is defined further down */
+.modal.locked-modal {
+  max-width: 440px;
   align-items: center;
   gap: 0.75rem;
   padding: 2rem;
@@ -733,7 +734,7 @@ body.dark-mode .rank-3 { color: #facc15; }
 
 .locked-modal .btn {
   margin-top: 0.5rem;
-  width: 100%;
+  padding: 0 1.75rem;
 }
 
 /* ===== DETAIL MODAL ===== */

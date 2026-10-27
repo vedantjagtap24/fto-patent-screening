@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { UploadCloud, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X, Search, ChevronDown, RotateCcw, ExternalLink, FileSpreadsheet, Info, Square, Lock, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { RANK_ALL, RANK_NONE, rankResults, filterResults, buildExportRows, exportFileName } from './resultsFilter';
 import './Screening.css';
 
 const Screening = ({ 
@@ -20,46 +21,10 @@ const Screening = ({
   const updateUiState = (updates) => setUiState(prev => ({ ...prev, ...updates }));
   const resultsPerPage = 10;
 
-  const calculateRank = (result) => {
-    const featureCount = features.filter((_, index) => result[`feature_${index + 1}`] === true).length;
-    if (featureCount === features.length) return 1;
-    if (featureCount >= Math.ceil(features.length * 0.75)) return 2;
-    if (featureCount >= Math.ceil(features.length * 0.5)) return 3;
-    return featureCount >= 1 ? 4 : null;
-  };
-
-  const processResultsWithRanking = (results) => results.map(result => ({
-    ...result,
-    rank: calculateRank(result),
-    featureCount: features.filter((_, index) => result[`feature_${index + 1}`] === true).length
-  }));
-
-  const getFilteredResults = (rankedResults) => {
-    let filtered = rankedResults;
-    
-    if (uiState.selectedRankFilter !== null) {
-      filtered = filtered.filter(result => 
-        uiState.selectedRankFilter === 'none' ? result.rank === null : result.rank === uiState.selectedRankFilter
-      );
-    } else {
-      filtered = filtered.filter(result => result.rank === 1 || result.rank === 2);
-    }
-
-    if (uiState.selectedFeatureFilter) {
-      filtered = filtered.filter(result => result[uiState.selectedFeatureFilter] === true);
-    }
-
-    return filtered
-      .filter(result => 
-        result.claimNumber.toString().includes(uiState.searchTerm) ||
-        (result.publicationNumber && result.publicationNumber.toLowerCase().includes(uiState.searchTerm.toLowerCase()))
-      )
-      .sort((a, b) => {
-        if (a.rank === null && b.rank === null) return 0;
-        if (a.rank === null) return 1;
-        if (b.rank === null) return -1;
-        return a.rank - b.rank;
-      });
+  const filters = {
+    rank: uiState.selectedRankFilter,
+    feature: uiState.selectedFeatureFilter,
+    search: uiState.searchTerm
   };
 
   const findPublicationColumn = (jsonData) => {
@@ -112,24 +77,30 @@ const Screening = ({
     reader.readAsArrayBuffer(uploadedFile);
   }, [setFile, setClaims, setError]);
 
+  // Rank and feature filters combine; picking one leaves the other as it is
   const handleFilter = (type, key) => {
     const updates = { currentPage: 1 };
     if (type === 'feature') {
       updates.selectedFeatureFilter = uiState.selectedFeatureFilter === key ? null : key;
-      updates.selectedRankFilter = null;
       updates.showFeatureDropdown = false;
     } else {
       updates.selectedRankFilter = uiState.selectedRankFilter === key ? null : key;
-      updates.selectedFeatureFilter = null;
       updates.showRankDropdown = false;
     }
     updateUiState(updates);
   };
 
+  const rankedResults = rankResults(results, features);
+  const filteredResults = filterResults(rankedResults, filters);
+  const totalPages = Math.ceil(filteredResults.length / resultsPerPage);
+  const paginatedResults = filteredResults.slice(
+    (uiState.currentPage - 1) * resultsPerPage,
+    uiState.currentPage * resultsPerPage
+  );
+
+  // The export is exactly the filtered table, every page of it
   const exportResults = async () => {
-    if (results.length === 0) return;
-    const filteredResults = getFilteredResults(processResultsWithRanking(results));
-    if (filteredResults.length === 0) return alert('No results to export. Please adjust your filters.');
+    if (filteredResults.length === 0) return;
 
     // Claims loaded from the server come without their text; fetch it for the export
     let claimText = (result) => (claims.find(c => (c['S.No.'] || claims.indexOf(c) + 1) === result.claimNumber) || {}).Claims || '';
@@ -145,78 +116,36 @@ const Screening = ({
       }
     }
 
-    const exportData = filteredResults.map((result) => {
-      const data = {
-        'S.No.': result.claimNumber,
-        'Publication Number': result.publicationNumber || '',
-        'Claims': claimText(result),
-        'Rank': result.rank || 'No Rank',
-        'Feature Count': `${result.featureCount}/${features.length}`
-      };
-
-      features.forEach((feature, index) => {
-        data[feature] = result[`feature_${index + 1}`] ? 'Yes' : 'No';
-      });
-
-      if (!uiState.selectedFeatureFilter && result.detailed_analysis) {
-        features.forEach((feature, index) => {
-          const key = `feature_${index + 1}`;
-          const analysis = result.detailed_analysis[key];
-          if (analysis) {
-            data[`${feature} - Confidence`] = analysis.confidence || 'N/A';
-            data[`${feature} - Reasoning`] = analysis.reasoning || 'N/A';
-            data[`${feature} - Relevant Claims`] = analysis.relevant_claims || 'N/A';
-          }
-        });
-      }
-      return data;
-    });
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const ws = XLSX.utils.json_to_sheet(buildExportRows(filteredResults, features, claimText));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Patent Analysis Results');
-    XLSX.writeFile(wb, 'patent_analysis_results.xlsx');
+    XLSX.writeFile(wb, exportFileName(filters));
   };
 
-  const getStats = () => {
-    const rankedResults = processResultsWithRanking(results);
-    const stats = { total: results.length };
-    
-    features.forEach((feature, index) => {
-      stats[`feature_${index + 1}`] = results.filter(r => r[`feature_${index + 1}`]).length;
-    });
-
-    const rankStats = {
-      rank1: rankedResults.filter(r => r.rank === 1).length,
-      rank2: rankedResults.filter(r => r.rank === 2).length,
-      rank3: rankedResults.filter(r => r.rank === 3).length,
-      rank4: rankedResults.filter(r => r.rank === 4).length,
-      noRank: rankedResults.filter(r => r.rank === null).length
-    };
-
-    return { stats, rankStats, rankedResults };
+  // Overall counts for the rank tiles
+  const rankStats = {
+    rank1: rankedResults.filter(r => r.rank === 1).length,
+    rank2: rankedResults.filter(r => r.rank === 2).length,
+    rank3: rankedResults.filter(r => r.rank === 3).length,
+    rank4: rankedResults.filter(r => r.rank === 4).length
   };
 
-  const { stats, rankStats, rankedResults } = getStats();
-  const filteredResults = getFilteredResults(rankedResults);
-  const totalPages = Math.ceil(filteredResults.length / resultsPerPage);
-  const paginatedResults = filteredResults.slice(
-    (uiState.currentPage - 1) * resultsPerPage,
-    uiState.currentPage * resultsPerPage
-  );
+  // Each dropdown's counts reflect the other filter, so they match what selecting gives
+  const countWith = (overrides) => filterResults(rankedResults, { ...filters, search: '', ...overrides }).length;
 
   const featureOptions = features.map((feature, index) => ({
     key: `feature_${index + 1}`,
     label: feature,
-    count: stats[`feature_${index + 1}`] || 0
+    count: countWith({ feature: `feature_${index + 1}` })
   }));
 
   const rankOptions = [
-    { key: 1, label: `Rank 1 (${features.length} Features)`, count: rankStats.rank1 },
-    { key: 2, label: `Rank 2 (${Math.ceil(features.length * 0.75)}+ Features)`, count: rankStats.rank2 },
-    { key: 3, label: `Rank 3 (${Math.ceil(features.length * 0.5)}+ Features)`, count: rankStats.rank3 },
-    { key: 4, label: 'Rank 4 (1+ Feature)', count: rankStats.rank4 },
-    { key: 'none', label: 'No Rank (0 Features)', count: rankStats.noRank }
+    { key: RANK_ALL, label: 'All ranks', count: countWith({ rank: RANK_ALL }) },
+    { key: 1, label: `Rank 1 (${features.length} features)`, count: countWith({ rank: 1 }) },
+    { key: 2, label: `Rank 2 (${Math.ceil(features.length * 0.75)}+ features)`, count: countWith({ rank: 2 }) },
+    { key: 3, label: `Rank 3 (${Math.ceil(features.length * 0.5)}+ features)`, count: countWith({ rank: 3 }) },
+    { key: 4, label: 'Rank 4 (1+ feature)', count: countWith({ rank: 4 }) },
+    { key: RANK_NONE, label: 'No rank (0 features)', count: countWith({ rank: RANK_NONE }) }
   ];
 
   const rankDescriptions = {
@@ -250,8 +179,9 @@ const Screening = ({
       
       {show && (
         <div className="filter-menu">
-          <div className="filter-option" onClick={() => handleFilter(type, null)}>
+          <div className={`filter-option ${selected === null ? 'selected' : ''}`} onClick={() => handleFilter(type, null)}>
             <span>{type === 'feature' ? 'All features' : 'Rank 1 & 2 (default)'}</span>
+            <span className="option-count">{type === 'feature' ? countWith({ feature: null }) : countWith({ rank: null })}</span>
           </div>
           {options.map((option) => (
             <div
@@ -571,18 +501,17 @@ const Screening = ({
                 </button>
               )}
 
-              <button onClick={exportResults} className="btn btn-secondary" disabled={uiState.exporting}>
+              <button onClick={exportResults} className="btn btn-secondary" disabled={uiState.exporting || filteredResults.length === 0}>
                 {uiState.exporting ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
-                {uiState.exporting ? 'Preparing…' : 'Export'}
+                {uiState.exporting ? 'Preparing…' : `Export ${filteredResults.length}`}
               </button>
             </div>
 
             <p className="results-summary">
-              Showing {filteredResults.length} of {stats.total} patents
-              {uiState.selectedFeatureFilter && ` · ${featureLabel(uiState.selectedFeatureFilter)}`}
-              {uiState.selectedRankFilter !== null && ` · ${rankOptions.find(r => r.key === uiState.selectedRankFilter)?.label}`}
-              {uiState.selectedRankFilter === null && uiState.selectedFeatureFilter === null && ' · High priority (Rank 1 & 2)'}
-              {uiState.searchTerm && ` · “${uiState.searchTerm}”`}
+              Showing {filteredResults.length} of {results.length} patents
+              {' · '}{uiState.selectedRankFilter === null ? 'High priority (Rank 1 & 2)' : rankOptions.find(r => r.key === uiState.selectedRankFilter)?.label}
+              {uiState.selectedFeatureFilter && ` · has “${featureLabel(uiState.selectedFeatureFilter)}”`}
+              {uiState.searchTerm && ` · search “${uiState.searchTerm}”`}
             </p>
 
             <div className="table-scroll">

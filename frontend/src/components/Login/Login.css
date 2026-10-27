@@ -1,147 +1,390 @@
+/* ===== PAGE ===== */
 .login-page {
-  display: grid;
-  grid-template-columns: minmax(380px, 0.9fr) minmax(0, 1.1fr);
-  height: 100vh;
-  background: var(--bg);
-}
-
-/* ===== BRAND PANEL ===== */
-.login-brand {
+  position: relative;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 2rem;
-  min-height: 0;
-  padding: 2.5rem 3rem;
+  overflow: hidden;
   color: #fff;
   /* Blueprint grid over a bright blue gradient */
   background-color: #2f5be0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
-    radial-gradient(circle at 80% 10%, rgba(125, 211, 252, 0.45), transparent 50%),
-    linear-gradient(160deg, #3d6df2 0%, #2a4fd1 60%, #2444b8 100%);
-  background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(150deg, #4374f5 0%, #2c52d6 55%, #2240b0 100%);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
 }
 
-.login-brand-logo,
-.login-mobile-logo {
+.login-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: glow-drift 18s ease-in-out infinite alternate;
+}
+
+.login-glow-1 {
+  width: 520px;
+  height: 520px;
+  top: -180px;
+  left: 35%;
+  background: rgba(125, 211, 252, 0.45);
+}
+
+.login-glow-2 {
+  width: 420px;
+  height: 420px;
+  bottom: -200px;
+  left: -120px;
+  background: rgba(167, 139, 250, 0.35);
+  animation-delay: -9s;
+}
+
+@keyframes glow-drift {
+  to { transform: translate(80px, 40px) scale(1.15); }
+}
+
+.login-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.625rem;
+  padding: 1.75rem 3rem 0;
   font-size: 17px;
   font-weight: 700;
 }
 
-.login-brand .brand-mark {
+.login-header .brand-mark {
   background: #fff;
   color: #2f4bc2;
 }
 
-.login-brand-title {
-  max-width: 26rem;
-  font-size: 30px;
-  line-height: 1.2;
+.login-layout {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  align-items: center;
+  gap: 4rem;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.5rem 3rem 2.5rem;
+}
+
+/* ===== HERO ===== */
+.login-eyebrow {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.login-hero-title {
+  max-width: 34rem;
+  margin-top: 1rem;
+  font-size: 40px;
+  line-height: 1.12;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   text-wrap: balance;
 }
 
-.login-highlights {
+.login-hero-title em {
+  font-style: normal;
+  background: linear-gradient(90deg, #bae6fd, #e0e7ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.login-hero-text {
+  max-width: 32rem;
+  margin-top: 1rem;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.login-stats {
+  display: flex;
+  gap: 2.25rem;
+  margin: 1.5rem 0 0;
+}
+
+.login-stats dt {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.login-stats dd {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ===== ANIMATED SCENE ===== */
+.scene {
+  --px: 0;
+  --py: 0;
+  margin-top: 2rem;
+  height: 330px;
+}
+
+.scene-stage {
+  position: relative;
+  height: 100%;
+  max-width: 560px;
+  transform: translate3d(calc(var(--px) * 18px), calc(var(--py) * 12px), 0);
+  transition: transform 0.4s ease-out;
+}
+
+.scene-sheet {
+  position: absolute;
+  left: 70px;
+  top: 0;
+  width: 240px;
+  height: 304px;
+  border-radius: 14px;
+}
+
+.scene-sheet-back,
+.scene-sheet-mid {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.scene-sheet-back {
+  transform: translate(-46px, 18px) rotate(-9deg);
+  animation: sheet-float 7s ease-in-out infinite;
+}
+
+.scene-sheet-mid {
+  transform: translate(-22px, 8px) rotate(-4deg);
+  animation: sheet-float 7s ease-in-out -2s infinite;
+}
+
+.scene-sheet-front {
+  overflow: visible;
+  filter: drop-shadow(0 24px 40px rgba(10, 20, 80, 0.35));
+  animation: sheet-float 7s ease-in-out -4s infinite;
+}
+
+@keyframes sheet-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -8px; }
+}
+
+.sheet-paper {
+  fill: rgba(255, 255, 255, 0.14);
+  stroke: rgba(255, 255, 255, 0.7);
+}
+
+.sheet-number {
+  fill: #fff;
+  font: 600 12px ui-monospace, Menlo, monospace;
+  letter-spacing: 0.5px;
+}
+
+.sheet-tag { fill: rgba(255, 255, 255, 0.2); }
+.sheet-tag-text { fill: #fff; font: 700 8px Inter, sans-serif; letter-spacing: 1px; }
+.sheet-rule { stroke: rgba(255, 255, 255, 0.3); }
+.sheet-fig { fill: rgba(255, 255, 255, 0.75); font: 600 9px Inter, sans-serif; letter-spacing: 1.5px; }
+.sheet-refs { fill: #fff; font: 9px ui-monospace, Menlo, monospace; }
+
+.sheet-drawing {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sheet-leaders {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-dasharray: 2 3;
+}
+
+/* One 7s timeline for the whole scene: the beam sweeps down (0-40%), claim
+   lines light as it passes, feature checks pop in (24-45%), the verdict lands
+   (55%), and everything resets together (88-100%). */
+.sheet-line {
+  fill: rgba(255, 255, 255, 0.28);
+  animation: 7s ease-in-out infinite;
+}
+
+.sheet-line-0 { animation-name: line-lit-0; }
+.sheet-line-1 { animation-name: line-lit-1; }
+.sheet-line-2 { animation-name: line-lit-2; }
+.sheet-line-3 { animation-name: line-lit-3; }
+.sheet-line-4 { animation-name: line-lit-4; }
+
+@keyframes line-lit-0 { 0%, 22% { fill: rgba(255, 255, 255, 0.28); } 25%, 86% { fill: rgba(224, 242, 254, 0.95); } 94%, 100% { fill: rgba(255, 255, 255, 0.28); } }
+@keyframes line-lit-1 { 0%, 25% { fill: rgba(255, 255, 255, 0.28); } 28%, 86% { fill: rgba(224, 242, 254, 0.95); } 94%, 100% { fill: rgba(255, 255, 255, 0.28); } }
+@keyframes line-lit-2 { 0%, 28% { fill: rgba(255, 255, 255, 0.28); } 31%, 86% { fill: rgba(224, 242, 254, 0.95); } 94%, 100% { fill: rgba(255, 255, 255, 0.28); } }
+@keyframes line-lit-3 { 0%, 31% { fill: rgba(255, 255, 255, 0.28); } 34%, 86% { fill: rgba(224, 242, 254, 0.95); } 94%, 100% { fill: rgba(255, 255, 255, 0.28); } }
+@keyframes line-lit-4 { 0%, 34% { fill: rgba(255, 255, 255, 0.28); } 37%, 86% { fill: rgba(224, 242, 254, 0.95); } 94%, 100% { fill: rgba(255, 255, 255, 0.28); } }
+
+.scan-beam {
+  animation: scan 7s linear infinite;
+}
+
+@keyframes scan {
+  0% { transform: translateY(0); opacity: 1; }
+  40% { transform: translateY(470px); opacity: 1; }
+  41%, 100% { transform: translateY(470px); opacity: 0; }
+}
+
+/* Feature checks pop in one after another, then the verdict */
+.scene-chips {
+  position: absolute;
+  left: 290px;
+  top: 34px;
   list-style: none;
-  margin: 1.75rem 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
+  gap: 0.625rem;
 }
 
-.login-highlights li {
+.scene-chip {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  font-size: 15px;
-  color: rgba(255, 255, 255, 0.9);
+  gap: 0.5rem;
+  width: max-content;
+  padding: 0.5rem 0.875rem 0.5rem 0.5rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #101828;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 24px -8px rgba(10, 20, 80, 0.45);
+  opacity: 0;
+  animation: 7s ease-out infinite;
 }
 
-.login-check {
+.scene-chip-0 { animation-name: chip-in-0; }
+.scene-chip-1 { animation-name: chip-in-1; }
+.scene-chip-2 { animation-name: chip-in-2; }
+.scene-chip-3 { animation-name: chip-in-3; }
+
+.scene-chip-icon {
   width: 22px;
   height: 22px;
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
 }
 
-.login-brand-footer {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.72);
-}
+.is-match .scene-chip-icon { background: #e8f6f0; color: #12805c; }
+.is-miss .scene-chip-icon { background: #f2f4f7; color: #98a2b3; }
+.is-miss { color: #667085; }
 
-/* Illustration takes whatever height is left and shrinks on short windows */
-.login-brand-body {
-  flex: 1;
-  min-height: 0;
+@keyframes chip-in-0 { 0%, 24% { opacity: 0; transform: translateX(-12px); } 29%, 88% { opacity: 1; transform: translateX(0); } 95%, 100% { opacity: 0; } }
+@keyframes chip-in-1 { 0%, 31% { opacity: 0; transform: translateX(-12px); } 36%, 88% { opacity: 1; transform: translateX(0); } 95%, 100% { opacity: 0; } }
+@keyframes chip-in-2 { 0%, 38% { opacity: 0; transform: translateX(-12px); } 43%, 88% { opacity: 1; transform: translateX(0); } 95%, 100% { opacity: 0; } }
+@keyframes chip-in-3 { 0%, 45% { opacity: 0; transform: translateX(-12px); } 50%, 88% { opacity: 1; transform: translateX(0); } 95%, 100% { opacity: 0; } }
+
+.scene-verdict {
+  position: absolute;
+  left: 290px;
+  top: 236px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  background: #101a3d;
+  box-shadow: 0 16px 32px -10px rgba(5, 10, 40, 0.6);
+  opacity: 0;
+  animation: verdict-pop 7s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
 }
 
-.patent-illustration {
-  display: block;
-  flex: 0 1 300px;
-  min-height: 160px;
-  width: 100%;
-  max-width: 440px;
-  margin-bottom: 1.75rem;
+.scene-verdict-rank {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fdba74;
 }
 
-/* ===== FORM ===== */
-.login-main {
+.scene-verdict-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+@keyframes verdict-pop {
+  0%, 55% { opacity: 0; transform: scale(0.8); }
+  61%, 88% { opacity: 1; transform: scale(1); }
+  95%, 100% { opacity: 0; transform: scale(1); }
+}
+
+.scene-counter {
+  position: absolute;
+  left: 0;
+  top: 236px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1rem;
-  overflow-y: auto;
+  flex-direction: column;
+  padding: 0.625rem 0.875rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #101828;
+  box-shadow: 0 12px 28px -10px rgba(10, 20, 80, 0.5);
 }
 
+.scene-counter-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2f4bc2;
+  font-variant-numeric: tabular-nums;
+}
+
+.scene-counter-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #667085;
+}
+
+/* ===== SIGN-IN CARD ===== */
 .login-card {
   width: 100%;
-  max-width: 380px;
-}
-
-.login-mobile-logo {
-  display: none;
-  margin-bottom: 2rem;
+  padding: 2rem;
+  border-radius: 18px;
+  background: var(--surface);
   color: var(--text);
+  box-shadow: 0 30px 60px -20px rgba(10, 20, 80, 0.55);
 }
 
 .login-title {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text);
 }
 
 .login-subtitle {
-  margin-top: 0.375rem;
+  margin-top: 0.25rem;
+  font-size: 14px;
   color: var(--text-2);
 }
 
 .demo-note {
   display: flex;
   align-items: flex-start;
-  gap: 0.625rem;
-  margin-top: 1.5rem;
-  padding: 0.75rem 0.875rem;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.625rem 0.75rem;
   border-radius: var(--radius);
   background: var(--accent-soft);
   color: var(--accent-text);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .demo-note svg {
@@ -152,8 +395,8 @@
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1.125rem;
-  margin-top: 1.5rem;
+  gap: 1rem;
+  margin-top: 1.25rem;
 }
 
 .login-error {
@@ -213,7 +456,15 @@
 
 .login-btn {
   width: 100%;
-  margin-top: 0.375rem;
+  margin-top: 0.25rem;
+}
+
+.login-disclaimer {
+  margin-top: 1.25rem;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+  text-align: center;
 }
 
 .spinner {
@@ -225,49 +476,79 @@
   animation: spin 0.8s linear infinite;
 }
 
-@media (max-width: 860px) {
-  .login-page {
+/* ===== SMALLER SCREENS ===== */
+@media (max-width: 1080px) {
+  .login-layout {
+    gap: 2.5rem;
+  }
+
+  .login-hero-title {
+    font-size: 34px;
+  }
+
+  .scene-stage {
+    transform: scale(0.88);
+    transform-origin: left top;
+  }
+}
+
+/* Short windows: keep the scene, drop the paragraph */
+@media (max-height: 800px) and (min-width: 981px) {
+  .login-hero-text {
+    display: none;
+  }
+
+  .scene {
+    margin-top: 1.5rem;
+  }
+}
+
+@media (max-width: 980px) {
+  .login-layout {
     grid-template-columns: 1fr;
-    height: auto;
-    min-height: 100vh;
+    max-width: 480px;
+    padding: 1.5rem 1rem 2.5rem;
+    gap: 2rem;
   }
 
-  .login-brand {
+  .login-header {
+    padding: 1.25rem 1rem 0;
+  }
+
+  .login-card {
+    order: -1;
+  }
+
+  .login-hero-title {
+    font-size: 28px;
+  }
+
+  .scene {
     display: none;
   }
 
-  .login-mobile-logo {
-    display: flex;
-  }
-
-  .login-mobile-logo .brand-mark {
-    background: var(--accent);
-    color: #fff;
+  .login-stats {
+    gap: 1.5rem;
   }
 }
 
-/* Short windows: drop the bullet list and footer so the drawing keeps its size */
-@media (max-height: 780px) {
-  .login-brand {
-    padding: 2rem 3rem;
+@media (prefers-reduced-motion: reduce) {
+  .login-glow,
+  .scene-sheet-back,
+  .scene-sheet-mid,
+  .scene-sheet-front,
+  .sheet-line,
+  .scan-beam {
+    animation: none;
   }
 
-  .login-brand-title {
-    font-size: 24px;
+  .scan-beam {
+    opacity: 0;
   }
 
-  .login-highlights {
-    display: none;
-  }
-}
-
-@media (max-height: 600px) {
-  .login-brand-footer {
-    display: none;
-  }
-
-  .patent-illustration {
-    margin-bottom: 1.25rem;
+  .scene-chip,
+  .scene-verdict {
+    animation: none;
+    opacity: 1;
   }
 }
-

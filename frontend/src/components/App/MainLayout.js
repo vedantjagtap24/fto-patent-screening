@@ -43,6 +43,8 @@ const MainLayout = ({ user, session, onLogout }) => {
   const cancelRequested = useRef(false);
   // Where the time-remaining estimate is measured from; excludes upload time
   const rateStart = useRef(null);
+  // Claim text fetched for export, kept so later exports don't download it again
+  const claimTexts = useRef(null);
 
   // Effects (consolidated)
   useEffect(() => {
@@ -240,8 +242,12 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   // Full claim text for export, fetched on demand when claims came from the server
   const loadClaimTexts = async () => {
-    const data = await apiCall(`/api/projects/${appState.currentProject.id}/claims?full=1`);
-    return new Map(data.claims.map(c => [c.claim_number, c.claims_text]));
+    const projectId = appState.currentProject.id;
+    if (claimTexts.current?.projectId !== projectId) {
+      const data = await apiCall(`/api/projects/${projectId}/claims?full=1`);
+      claimTexts.current = { projectId, texts: new Map(data.claims.map(c => [c.claim_number, c.claims_text])) };
+    }
+    return claimTexts.current.texts;
   };
 
   const formatElapsedTime = (milliseconds) => {

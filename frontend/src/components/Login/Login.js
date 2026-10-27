@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, FileSearch, Check, Info } from 'lucide-react';
+import { Eye, EyeOff, FileSearch, Info } from 'lucide-react';
 import { signIn } from '../../lib/supabase';
-import PatentIllustration from './PatentIllustration';
+import LoginScene from './LoginScene';
 import './Login.css';
 
 const PasswordInput = ({ value, onChange, onKeyPress, placeholder, show, onToggle }) => (
@@ -114,50 +114,51 @@ const Login = ({ onLogin }) => {
     return formState.isLoading || !formState.email || !formState.password;
   };
 
-  const highlights = [
-    'Screen thousands of patent claims in one run',
-    'AI checks every claim against your product features',
-    'Claims ranked by overlap so you know where to look first'
+  const stats = [
+    { value: '3,056', label: 'patents' },
+    { value: '4', label: 'product features' },
+    { value: '~15 min', label: 'per full run' }
   ];
 
   return (
     <div className="login-page">
-      <aside className="login-brand">
-        <div className="login-brand-logo">
-          <span className="brand-mark"><FileSearch size={18} /></span>
-          <span>FTOlyzer</span>
-        </div>
+      <div className="login-glow login-glow-1" />
+      <div className="login-glow login-glow-2" />
 
-        <div className="login-brand-body">
-          <PatentIllustration />
-          <h2 className="login-brand-title">Freedom to Operate screening, in hours instead of weeks.</h2>
-          <ul className="login-highlights">
-            {highlights.map(item => (
-              <li key={item}>
-                <span className="login-check"><Check size={14} /></span>
-                {item}
-              </li>
+      <header className="login-header">
+        <span className="brand-mark"><FileSearch size={18} /></span>
+        <span>FTOlyzer</span>
+      </header>
+
+      <div className="login-layout">
+        <section className="login-hero">
+          <span className="login-eyebrow">AI patent clearance</span>
+          <h2 className="login-hero-title">
+            Freedom to Operate screening, <em>in minutes</em> instead of weeks.
+          </h2>
+          <p className="login-hero-text">
+            Upload thousands of patent claims, describe your product, and FTOlyzer checks every claim
+            against every feature, then ranks the ones that could block you.
+          </p>
+          <dl className="login-stats">
+            {stats.map(stat => (
+              <div key={stat.label}>
+                <dt>{stat.value}</dt>
+                <dd>{stat.label}</dd>
+              </div>
             ))}
-          </ul>
-        </div>
+          </dl>
+          <LoginScene />
+        </section>
 
-        <p className="login-brand-footer">Preliminary analysis only. Final conclusions should be reviewed by patent counsel.</p>
-      </aside>
-
-      <main className="login-main">
-        <div className="login-card">
-          <div className="login-mobile-logo">
-            <span className="brand-mark"><FileSearch size={18} /></span>
-            <span>FTOlyzer</span>
-          </div>
-
+        <main className="login-card">
           <h1 className="login-title">Sign in</h1>
-          <p className="login-subtitle">Welcome to FTOlyzer. Analyze patent claims with confidence.</p>
+          <p className="login-subtitle">See a completed screening of 3,056 surgical-robotics patents.</p>
 
           {DEMO_EMAIL && DEMO_PASSWORD && (
             <div className="demo-note">
               <Info size={16} />
-              <span>Demo access: the details are filled in for you. Just click <strong>Sign in</strong>.</span>
+              <span>Demo access is filled in. Just click <strong>Sign in</strong>.</span>
             </div>
           )}
 
@@ -208,8 +209,10 @@ const Login = ({ onLogin }) => {
               )}
             </button>
           </div>
-        </div>
-      </main>
+
+          <p className="login-disclaimer">Preliminary analysis only. Final conclusions should be reviewed by patent counsel.</p>
+        </main>
+      </div>
     </div>
   );
 };
