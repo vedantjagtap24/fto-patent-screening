@@ -27,14 +27,18 @@ const MainLayout = ({ user, session, onLogout }) => {
     processedCount: 0,
     currentlyProcessing: '',
     startTime: null,
-    elapsedTime: 0
+    elapsedTime: 0,
+    phase: null
   });
 
   // Effects (consolidated)
   useEffect(() => {
-    document.body.classList.toggle('dark-mode', darkMode);
     checkBackendStatus();
     loadUserData();
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('dark-mode', darkMode);
     
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -58,6 +62,53 @@ const MainLayout = ({ user, session, onLogout }) => {
     }
     return () => clearInterval(interval);
   }, [appState.isProcessing, appState.startTime]);
+
+  // While the server analyzes in the background, poll its real progress
+  const projectId = appState.currentProject?.id;
+  useEffect(() => {
+    if (!appState.isProcessing || appState.phase !== 'analyzing' || !projectId) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const data = await apiCall(`/api/projects/${projectId}/status`);
+        if (cancelled) return;
+
+        const { status, processed, total } = data;
+        const progress = total ? Math.min(99, Math.round((processed / total) * 100)) : 0;
+
+        if (status === 'completed') {
+          const resultsData = await apiCall(`/api/projects/${projectId}/results`);
+          if (cancelled) return;
+          updateAppState({
+            results: resultsData.results || [],
+            progress: 100,
+            processedCount: total,
+            currentlyProcessing: 'Analysis complete',
+            isProcessing: false,
+            phase: null
+          });
+        } else if (status === 'error') {
+          updateAppState({ isProcessing: false, phase: null, error: 'The analysis stopped because of a server error. Please try again.' });
+        } else {
+          updateAppState({
+            progress,
+            processedCount: processed,
+            currentlyProcessing: `Analyzing patent ${Math.min(processed + 1, total)} of ${total}…`
+          });
+        }
+      } catch (error) {
+        console.error('Status check failed:', error);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [appState.isProcessing, appState.phase, projectId]);
 
   // API Helper
   const apiCall = async (endpoint, method = 'GET', body = null) => {
@@ -133,7 +184,9 @@ const MainLayout = ({ user, session, onLogout }) => {
           features,
           claims,
           results,
-          isProcessing: latestProject.status === 'processing'
+          isProcessing: latestProject.status === 'processing',
+          phase: latestProject.status === 'processing' ? 'analyzing' : null,
+          startTime: latestProject.status === 'processing' ? Date.now() : null
         }));
       }
     } catch (error) {
@@ -198,12 +251,16 @@ const MainLayout = ({ user, session, onLogout }) => {
     }
   };
 
-  const saveClaims = async (projectId, claims) => {
-    try {
-      await apiCall(`/api/projects/${projectId}/claims`, 'POST', { claims });
-    } catch (error) {
-      console.error('Error saving claims:', error);
-      throw error;
+  // Sent in chunks so large spreadsheets don't hit request size or time limits
+  const CLAIMS_CHUNK_SIZE = 200;
+  const saveClaims = async (projectId, claims, onProgress) => {
+    for (let offset = 0; offset < claims.length; offset += CLAIMS_CHUNK_SIZE) {
+      await apiCall(`/api/projects/${projectId}/claims`, 'POST', {
+        claims: claims.slice(offset, offset + CLAIMS_CHUNK_SIZE),
+        append: offset > 0,
+        offset
+      });
+      onProgress(Math.min(offset + CLAIMS_CHUNK_SIZE, claims.length));
     }
   };
 
@@ -218,61 +275,49 @@ const MainLayout = ({ user, session, onLogout }) => {
       return;
     }
 
+    const total = appState.claims.length;
+    updateAppState({
+      isProcessing: true,
+      phase: 'uploading',
+      error: '',
+      results: [],
+      startTime: Date.now(),
+      elapsedTime: 0,
+      progress: 0,
+      processedCount: 0,
+      currentlyProcessing: 'Preparing your project…'
+    });
+
     try {
       let project = appState.currentProject;
 
       // Create project if it doesn't exist
       if (!project) {
         project = await createProject();
-        if (!project) return;
+        if (!project) {
+          updateAppState({ isProcessing: false, phase: null });
+          return;
+        }
       }
 
-      // Save features and claims to database
       await saveFeatures(project.id, appState.features);
-      await saveClaims(project.id, appState.claims);
-
-      updateAppState({
-        isProcessing: true,
-        error: '',
-        results: [],
-        startTime: Date.now(),
-        progress: 1,
-        processedCount: 1,
-        currentlyProcessing: `Processing patent 1 of ${appState.claims.length}...`
+      await saveClaims(project.id, appState.claims, (saved) => {
+        updateAppState({ currentlyProcessing: `Uploading claims: ${saved} of ${total}…` });
       });
 
-      // Simulate progress updates
-      let count = 1;
-      const progressTimer = setInterval(() => {
-        count++;
-        if (count <= appState.claims.length) {
-          updateAppState({
-            progress: Math.round((count / appState.claims.length) * 95),
-            processedCount: count,
-            currentlyProcessing: `Processing patent ${count} of ${appState.claims.length}...`
-          });
-        }
-      }, 800);
-
-      // Start analysis
-      const analysisData = await apiCall(`/api/projects/${project.id}/analyze`, 'POST');
-
-      clearInterval(progressTimer);
-
-      if (analysisData.success) {
-        updateAppState({
-          results: analysisData.results,
-          progress: 100,
-          processedCount: appState.claims.length,
-          currentlyProcessing: 'Analysis Complete!',
-          isProcessing: false
-        });
-      }
+      // The server answers right away and keeps analyzing; progress comes from polling
+      await apiCall(`/api/projects/${project.id}/analyze`, 'POST');
+      updateAppState({
+        currentProject: project,
+        phase: 'analyzing',
+        currentlyProcessing: `Analyzing patent 1 of ${total}…`
+      });
     } catch (error) {
       console.error('Analysis error:', error);
       updateAppState({ 
         error: `Error: ${error.message}`,
-        isProcessing: false
+        isProcessing: false,
+        phase: null
       });
     }
   };
@@ -290,7 +335,8 @@ const MainLayout = ({ user, session, onLogout }) => {
       currentlyProcessing: '',
       error: '',
       features: [],
-      isProcessing: false
+      isProcessing: false,
+      phase: null
     });
   };
 

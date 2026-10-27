@@ -9,7 +9,7 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || process.env.RAILWAY_PORT || 3001;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 6 });
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -64,6 +64,18 @@ const findPublicationNumber = (claim) => {
   }
   
   return 'N/A';
+};
+
+// Supabase returns at most 1000 rows per request, so page through larger tables
+const PAGE_SIZE = 1000;
+const fetchAll = async (buildQuery) => {
+  const rows = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) return rows;
+  }
 };
 
 const dbOperation = async (operation) => {
@@ -148,15 +160,19 @@ const featureRoutes = {
 const claimRoutes = {
   save: async (req, res) => {
     const { projectId } = req.params;
-    const { claims } = req.body;
+    const { claims, append, offset = 0 } = req.body;
 
-    await supabase.from('patent_claims').delete().eq('project_id', projectId);
+    // Large files arrive in chunks: the first replaces old claims, the rest append
+    if (!append) {
+      await supabase.from('analysis_summary').delete().eq('project_id', projectId);
+      await supabase.from('patent_claims').delete().eq('project_id', projectId);
+    }
     
     const result = await dbOperation(
       () => supabase.from('patent_claims').insert(
         claims.map((claim, index) => ({
           project_id: projectId,
-          claim_number: claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (index + 1),
+          claim_number: claim['S.No.'] || claim['S.No'] || claim['Claim Number'] || claim['Claim #'] || (offset + index + 1),
           publication_number: findPublicationNumber(claim),
           claims_text: claim.Claims || claim.claims || claim.Claim || claim.claim || '',
           raw_data: claim
@@ -164,18 +180,20 @@ const claimRoutes = {
       ).select()
     );
 
-    result.success ? res.json({ success: true, claims: result.data }) :
-                    res.status(500).json({ error: 'Failed to save claims', message: result.error });
+    result.success && !result.error ? res.json({ success: true, saved: result.data.length }) :
+                    res.status(500).json({ error: 'Failed to save claims', message: result.error?.message || result.error });
   },
 
   get: async (req, res) => {
     const { projectId } = req.params;
-    const result = await dbOperation(
-      () => supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
-    );
-
-    result.success ? res.json({ success: true, claims: result.data }) :
-                    res.status(500).json({ error: 'Failed to fetch claims', message: result.error });
+    try {
+      const claims = await fetchAll(
+        () => supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
+      );
+      res.json({ success: true, claims });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch claims', message: error.message });
+    }
   }
 };
 
@@ -209,7 +227,8 @@ IMPORTANT: For relevant_claims, provide only claim numbers (like "1, 2, 3") not 
       { role: 'user', content: prompt }
     ],
     max_tokens: 2000,
-    temperature: 0.1
+    temperature: 0.1,
+    response_format: { type: 'json_object' }
   });
 
   return JSON.parse(response.choices[0].message.content.trim());
@@ -239,108 +258,110 @@ async function saveAnalysisResults(projectId, claimId, features, analysisResult)
   return { rank, featureCount };
 }
 
+const failedAnalysis = (featureNames) => {
+  const analysis = {};
+  featureNames.forEach((feature, index) => {
+    analysis[`feature_${index + 1}`] = {
+      feature_name: feature,
+      present: false,
+      confidence: "Low",
+      reasoning: "Analysis failed - unable to process claim",
+      relevant_claims: "N/A"
+    };
+  });
+  return analysis;
+};
+
+// Runs after the HTTP response has been sent; progress is read back via /status
+async function runAnalysis(projectId) {
+  try {
+    const [features, claims] = await Promise.all([
+      fetchAll(() => supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true })),
+      fetchAll(() => supabase.from('patent_claims').select('id, claim_number, claims_text').eq('project_id', projectId).order('claim_number', { ascending: true }))
+    ]);
+    const featureNames = features.map(f => f.name);
+    const batchSize = 10;
+
+    for (let i = 0; i < claims.length; i += batchSize) {
+      const batch = claims.slice(i, i + batchSize);
+
+      await Promise.all(batch.map(async (claim) => {
+        try {
+          const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
+          await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
+        } catch (error) {
+          // Record the failure so the claim still shows up and progress keeps counting
+          await supabase.from('analysis_summary').insert([{
+            project_id: projectId,
+            claim_id: claim.id,
+            rank: null,
+            feature_count: 0,
+            total_features: featureNames.length,
+            detailed_analysis: failedAnalysis(featureNames)
+          }]);
+        }
+      }));
+
+      if (i + batchSize < claims.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    await supabase.from('projects').update({ 
+      status: 'completed',
+      updated_at: new Date().toISOString()
+    }).eq('id', projectId);
+  } catch (error) {
+    console.error('Analysis failed for project', projectId, error);
+    await supabase.from('projects').update({ status: 'error' }).eq('id', projectId);
+  }
+}
+
+const countRows = async (table, projectId) => {
+  const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true }).eq('project_id', projectId);
+  if (error) throw error;
+  return count || 0;
+};
+
 const analysisRoutes = {
   analyze: async (req, res) => {
     const { projectId } = req.params;
 
     try {
-      await supabase.from('projects').update({ status: 'processing' }).eq('id', projectId);
-
-      const [featuresResult, claimsResult] = await Promise.all([
-        supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true }),
-        supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
+      const [featureCount, claimCount] = await Promise.all([
+        countRows('features', projectId),
+        countRows('patent_claims', projectId)
       ]);
 
-      if (featuresResult.error || claimsResult.error) throw new Error('Failed to fetch project data');
-
-      const features = featuresResult.data;
-      const claims = claimsResult.data;
-      const featureNames = features.map(f => f.name);
-
-      if (!features.length || !claims.length) {
+      if (!featureCount || !claimCount) {
         return res.status(400).json({ error: 'No features or claims found for this project' });
       }
-      
-      const results = [];
-      const batchSize = 10;
-      
-      for (let i = 0; i < claims.length; i += batchSize) {
-        const batch = claims.slice(i, i + batchSize);
-        
-        const batchPromises = batch.map(async (claim) => {
-          try {
-            const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
-            const { rank, featureCount } = await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
-            
-            const result = {
-              claimNumber: claim.claim_number,
-              publicationNumber: claim.publication_number,
-              features: featureNames,
-              detailed_analysis: analysis,
-              rank,
-              featureCount
-            };
 
-            featureNames.forEach((_, index) => {
-              const key = `feature_${index + 1}`;
-              result[key] = analysis[key]?.present || false;
-            });
+      // Clear results from any earlier run so they are not duplicated
+      await supabase.from('analysis_summary').delete().eq('project_id', projectId);
+      await supabase.from('projects').update({ status: 'processing' }).eq('id', projectId);
 
-            return result;
-          } catch (error) {
-            const errorResult = {
-              claimNumber: claim.claim_number,
-              publicationNumber: claim.publication_number,
-              features: featureNames,
-              detailed_analysis: {},
-              rank: null,
-              featureCount: 0
-            };
-
-            featureNames.forEach((feature, index) => {
-              const key = `feature_${index + 1}`;
-              errorResult[key] = false;
-              errorResult.detailed_analysis[key] = {
-                feature_name: feature,
-                present: false,
-                confidence: "Low",
-                reasoning: "Analysis failed - unable to process claim",
-                relevant_claims: "N/A"
-              };
-            });
-
-            return errorResult;
-          }
-        });
-        
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults);
-        
-        if (i + batchSize < claims.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      await supabase.from('projects').update({ 
-        status: 'completed',
-        updated_at: new Date().toISOString()
-      }).eq('id', projectId);
-      
-      res.json({
-        success: true,
-        totalProcessed: results.length,
-        results: results
-      });
-
+      res.status(202).json({ success: true, started: true, total: claimCount });
+      runAnalysis(projectId);
     } catch (error) {
-      await supabase.from('projects').update({ status: 'error' }).eq('id', projectId);
-      
-      res.status(500).json({
-        success: false,
-        error: 'Failed to process claims',
-        message: error.message,
-        results: []
-      });
+      res.status(500).json({ success: false, error: 'Failed to start analysis', message: error.message });
+    }
+  },
+
+  status: async (req, res) => {
+    const { projectId } = req.params;
+
+    try {
+      const [{ data: project, error }, processed, total] = await Promise.all([
+        supabase.from('projects').select('status').eq('id', projectId).single(),
+        countRows('analysis_summary', projectId),
+        countRows('patent_claims', projectId)
+      ]);
+      if (error) throw error;
+
+      res.json({ success: true, status: project.status, processed, total });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch status', message: error.message });
     }
   },
 
@@ -349,14 +370,14 @@ const analysisRoutes = {
 
     try {
       const [resultsData, featuresData] = await Promise.all([
-        supabase.from('analysis_summary').select(`*, patent_claims (claim_number, publication_number)`).eq('project_id', projectId).order('created_at', { ascending: true }),
+        fetchAll(() => supabase.from('analysis_summary').select(`*, patent_claims (claim_number, publication_number)`).eq('project_id', projectId).order('created_at', { ascending: true }).order('claim_id', { ascending: true })),
         supabase.from('features').select('name').eq('project_id', projectId).order('order_index', { ascending: true })
       ]);
 
-      if (resultsData.error || featuresData.error) throw new Error('Failed to fetch results');
+      if (featuresData.error) throw new Error('Failed to fetch results');
 
       const featureNames = featuresData.data?.map(f => f.name) || [];
-      const formattedResults = resultsData.data.map(result => {
+      const formattedResults = resultsData.map(result => {
         const formatted = {
           claimNumber: result.patent_claims.claim_number,
           publicationNumber: result.patent_claims.publication_number,
@@ -391,6 +412,7 @@ app.get('/api/projects/:projectId/features', authenticateUser, featureRoutes.get
 app.post('/api/projects/:projectId/claims', authenticateUser, claimRoutes.save);
 app.get('/api/projects/:projectId/claims', authenticateUser, claimRoutes.get);
 app.post('/api/projects/:projectId/analyze', authenticateUser, analysisRoutes.analyze);
+app.get('/api/projects/:projectId/status', authenticateUser, analysisRoutes.status);
 app.get('/api/projects/:projectId/results', authenticateUser, analysisRoutes.getResults);
 
 app.post('/analyze-all-claims', (req, res) => {
