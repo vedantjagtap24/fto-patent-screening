@@ -52,20 +52,20 @@ function App() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
-        color: 'white'
+        background: 'var(--bg)',
+        color: 'var(--text-3)'
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            width: '40px', 
-            height: '40px', 
-            border: '3px solid rgba(255, 255, 255, 0.3)',
-            borderTop: '3px solid white',
+          <div style={{
+            width: '28px',
+            height: '28px',
+            border: '2.5px solid var(--border)',
+            borderTop: '2.5px solid var(--accent)',
             borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 1rem'
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 0.75rem'
           }} />
-          <div>Loading...</div>
+          <div>Loading…</div>
         </div>
       </div>
     );

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X } from 'lucide-react';
+import { UploadCloud, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X, Search, ChevronDown, RotateCcw, ExternalLink, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import './Screening.css';
 
@@ -203,36 +203,48 @@ const Screening = ({
     { key: 'none', label: 'No Rank (0 Features)', count: rankStats.noRank }
   ];
 
+  const rankDescriptions = {
+    1: 'All features',
+    2: '75%+ of features',
+    3: '50%+ of features',
+    4: 'At least 1 feature'
+  };
+
+  const featureLabel = (key) => features[parseInt(key.split('_')[1]) - 1];
+
+  const closeAnalysisModal = () => {
+    updateUiState({ showAnalysisModal: false, selectedAnalysis: null });
+    document.body.style.overflow = 'unset';
+  };
+
   const FilterDropdown = ({ type, options, selected, show, setShow }) => (
-    <div className="filter-dropdown modern-dropdown">
+    <div className="filter-dropdown">
       <button 
-        className={`modern-filter-btn ${selected ? 'selected' : ''}`}
+        className={`filter-btn ${selected !== null ? 'selected' : ''}`}
         onClick={() => setShow(!show)}
       >
-        <span>
+        <span className="filter-btn-label">
           {type === 'feature' 
-            ? (selected ? features[parseInt(selected.split('_')[1]) - 1] : 'Filter by Feature')
-            : (selected !== null ? options.find(r => r.key === selected)?.label || 'Filter by Rank' : 'Filter by Rank')
+            ? (selected ? featureLabel(selected) : 'All features')
+            : (selected !== null ? options.find(r => r.key === selected)?.label || 'Rank 1 & 2' : 'Rank 1 & 2')
           }
         </span>
-        <svg className={`dropdown-arrow ${show ? 'rotated' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M6 9l6 6 6-6"/>
-        </svg>
+        <ChevronDown size={16} className={`dropdown-arrow ${show ? 'rotated' : ''}`} />
       </button>
       
       {show && (
-        <div className="modern-dropdown-menu">
-          <div className="modern-dropdown-option" onClick={() => handleFilter(type, null)}>
-            <span>All {type === 'feature' ? 'Features' : 'Ranks'}</span>
+        <div className="filter-menu">
+          <div className="filter-option" onClick={() => handleFilter(type, null)}>
+            <span>{type === 'feature' ? 'All features' : 'Rank 1 & 2 (default)'}</span>
           </div>
           {options.map((option) => (
             <div
               key={option.key}
-              className={`modern-dropdown-option ${option.count === 0 ? 'disabled' : ''} ${selected === option.key ? 'selected' : ''}`}
+              className={`filter-option ${option.count === 0 ? 'disabled' : ''} ${selected === option.key ? 'selected' : ''}`}
               onClick={() => option.count > 0 && handleFilter(type, option.key)}
             >
               <span>{option.label}</span>
-              <span className="option-count">({option.count})</span>
+              <span className="option-count">{option.count}</span>
             </div>
           ))}
         </div>
@@ -240,165 +252,186 @@ const Screening = ({
     </div>
   );
 
+  const canStart = claims.length > 0 && features.length > 0 && !isProcessing && backendStatus === 'connected';
+
   return (
-    <div className="module-content">
-      <div className="section">
-        <div className="centered-upload-section">
-          <div className="upload-and-analysis-container">
-            <div className="upload-section-centered">
-              <label htmlFor="file-upload" className="centered-upload-button">
-                <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" id="file-upload" />
-                <Upload size={20} className="upload-button-icon" />
-                Upload Excel File
-              </label>
-              
-              {file && (
-                <div className="file-success-centered">
-                  <CheckCircle size={16} color="#059669" />
-                  <span>{file.name} - {claims.length} patents detected</span>
-                </div>
-              )}
+    <div className="screening">
+      {/* ===== SETUP ===== */}
+      <div className="setup-grid">
+        <section className="setup-card card">
+          <div className="setup-card-header">
+            <span className="step-badge">1</span>
+            <div>
+              <h2 className="setup-title">Upload patent claims</h2>
+              <p className="setup-subtitle">Excel file with S.No., Publication Number and Claims columns</p>
             </div>
           </div>
 
-          {claims.length > 0 && (
-            <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'white', borderRadius: '1rem', border: '1px solid #e5e7eb' }}>
-              <h3 style={{ marginBottom: '1rem', fontWeight: '600', color: '#111827' }}>
-                What features do you want to find?
-              </h3>
+          <label htmlFor="file-upload" className={`dropzone ${claims.length > 0 ? 'has-file' : ''}`}>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileUpload}
+              onClick={(e) => { e.target.value = null; }}
+              className="visually-hidden"
+              id="file-upload"
+            />
+            {claims.length > 0 ? (
+              <>
+                <FileSpreadsheet size={28} className="dropzone-icon" />
+                <span className="dropzone-title">{file ? file.name : 'Claims from your last project'}</span>
+                <span className="dropzone-meta">
+                  <CheckCircle size={14} /> {claims.length} patents detected · Click to replace
+                </span>
+              </>
+            ) : (
+              <>
+                <UploadCloud size={28} className="dropzone-icon" />
+                <span className="dropzone-title">Click to upload an Excel file</span>
+                <span className="dropzone-meta">.xlsx or .xls</span>
+              </>
+            )}
+          </label>
+        </section>
 
-              {features.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ marginBottom: '0.5rem', color: '#374151' }}>
-                    Features to analyze ({features.length}):
-                  </h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-                    {features.map((feature, index) => (
-                      <div key={index} className="feature-badge" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem' }}>
-                        <span>{feature}</span>
-                        <button onClick={() => removeFeature(index)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0', display: 'flex' }}>
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  value={uiState.newFeature}
-                  onChange={(e) => updateUiState({ newFeature: e.target.value })}
-                  onKeyPress={(e) => e.key === 'Enter' && addFeature(uiState.newFeature) && updateUiState({ newFeature: '' })}
-                  placeholder="Type a feature (e.g., 'wireless connectivity', 'machine learning')"
-                  style={{ flex: 1, padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}
-                />
-                <button
-                  onClick={() => addFeature(uiState.newFeature) && updateUiState({ newFeature: '' })}
-                  className="start-button-centered"
-                  style={{ minWidth: 'auto', padding: '0.5rem 1rem' }}
-                >
-                  <Plus size={16} className="button-icon" />
-                  Add
-                </button>
-              </div>
+        <section className="setup-card card">
+          <div className="setup-card-header">
+            <span className="step-badge">2</span>
+            <div>
+              <h2 className="setup-title">Product features</h2>
+              <p className="setup-subtitle">What should each claim be checked for?</p>
             </div>
-          )}
+          </div>
 
-          {claims.length > 0 && features.length > 0 && (
+          <div className="feature-input-row">
+            <input
+              type="text"
+              className="input"
+              value={uiState.newFeature}
+              onChange={(e) => updateUiState({ newFeature: e.target.value })}
+              onKeyPress={(e) => e.key === 'Enter' && addFeature(uiState.newFeature) && updateUiState({ newFeature: '' })}
+              placeholder="e.g. Tremor reduction technology"
+            />
             <button
-              onClick={startBulkScreening}
-              disabled={isProcessing || backendStatus !== 'connected'}
-              className={`start-button-centered ${isProcessing || backendStatus !== 'connected' ? 'disabled' : ''}`}
-              style={{ marginTop: '1.5rem' }}
+              onClick={() => addFeature(uiState.newFeature) && updateUiState({ newFeature: '' })}
+              className="btn btn-secondary"
+              disabled={!uiState.newFeature.trim()}
             >
-              <Play size={18} className="button-icon" />
-              {isProcessing ? 'Processing...' : 'Start Analysis'}
+              <Plus size={16} />
+              Add
             </button>
-          )}
+          </div>
 
-          {isProcessing && (
-            <div className="progress-section-centered">
-              <div className="progress-info-row">
-                <div className="progress-stats">
-                  <div className="progress-number-compact">{Math.round(progress)}%</div>
-                  <div className="progress-details">
-                    <div className="progress-label-compact">{processedCount} of {claims.length} patents analyzed</div>
-                    <div className="progress-time-compact">{formatElapsedTime(elapsedTime)}</div>
-                  </div>
-                </div>
-                
-                {currentlyProcessing && (
-                  <div className="progress-status-compact">
-                    <Clock size={14} className="progress-status-icon" />
-                    <span className="progress-current">{currentlyProcessing}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="progress-bar-compact">
-                <div className="progress-fill" style={{ width: `${progress}%` }} />
-              </div>
-              
-              {processedCount > 0 && processedCount < claims.length && (
-                <div style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center', marginTop: '0.5rem' }}>
-                  Estimated time remaining: {(() => {
-                    const avgTimePerClaim = elapsedTime / processedCount;
-                    const remainingClaims = claims.length - processedCount;
-                    return formatElapsedTime(avgTimePerClaim * remainingClaims);
-                  })()}
-                </div>
-              )}
-            </div>
+          {features.length > 0 ? (
+            <ol className="feature-list">
+              {features.map((feature, index) => (
+                <li key={index} className="feature-item">
+                  <span className="feature-index">{index + 1}</span>
+                  <span className="feature-text">{feature}</span>
+                  <button className="icon-btn feature-remove" onClick={() => removeFeature(index)} title="Remove feature">
+                    <X size={14} />
+                  </button>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="feature-empty">No features yet. Add one at a time and press Enter.</p>
           )}
-        </div>
+        </section>
       </div>
 
-      {error && (
-        <div className="error-box">
-          <div className="error-content">
-            <AlertCircle size={24} color="#dc2626" />
-            <p className="error-text">{error}</p>
+      {/* ===== RUN BAR ===== */}
+      <section className="run-bar card">
+        <div className="run-bar-main">
+          <div className="run-summary">
+            <span className="step-badge">3</span>
+            <div>
+              <h2 className="setup-title">Run analysis</h2>
+              <p className="setup-subtitle">
+                {claims.length > 0 && features.length > 0
+                  ? `${claims.length} patents × ${features.length} features`
+                  : 'Upload claims and add at least one feature to start'}
+              </p>
+            </div>
           </div>
+          <div className="run-actions">
+            {(claims.length > 0 || features.length > 0 || results.length > 0) && !isProcessing && (
+              <button className="btn btn-ghost" onClick={clearAllData}>
+                <RotateCcw size={16} />
+                Start over
+              </button>
+            )}
+            <button onClick={startBulkScreening} disabled={!canStart} className="btn btn-primary btn-lg">
+              <Play size={16} />
+              {isProcessing ? 'Analyzing…' : 'Start analysis'}
+            </button>
+          </div>
+        </div>
+
+        {isProcessing && (
+          <div className="progress">
+            <div className="progress-row">
+              <span className="progress-percent">{Math.round(progress)}%</span>
+              <span className="progress-label">{processedCount} of {claims.length} patents analyzed</span>
+              <span className="progress-time">
+                <Clock size={14} /> {formatElapsedTime(elapsedTime)}
+                {processedCount > 0 && processedCount < claims.length && (
+                  <> · about {formatElapsedTime((elapsedTime / processedCount) * (claims.length - processedCount))} left</>
+                )}
+              </span>
+            </div>
+            <div className="progress-track">
+              <div className="progress-fill" style={{ width: `${progress}%` }} />
+            </div>
+            {currentlyProcessing && <p className="progress-current">{currentlyProcessing}</p>}
+          </div>
+        )}
+      </section>
+
+      {error && (
+        <div className="alert alert-error">
+          <AlertCircle size={18} />
+          <p>{error}</p>
         </div>
       )}
 
+      {/* ===== RESULTS ===== */}
       {results.length > 0 && (
-        <div className="section">
-          <div className="results-header">
-            <h2 className="results-title">
-              Analysis Results
-              <span className="results-badge">{results.length} processed</span>
-            </h2>
+        <section className="results">
+          <div className="results-heading">
+            <h2 className="results-title">Results</h2>
+            <span className="results-count">{results.length} patents analyzed</span>
           </div>
 
-          <div className="dropdown-filters">
-            <div className="filters-header">
-              <div className="filters-title-section">
-                <h3 className="filters-title">Filters & Export</h3>
-                <div className="results-summary">
-                  <span className="summary-text">
-                    Showing {filteredResults.length} of {stats.total} patents
-                    {uiState.selectedFeatureFilter && ` • ${features[parseInt(uiState.selectedFeatureFilter.split('_')[1]) - 1]}`}
-                    {uiState.selectedRankFilter !== null && ` • ${rankOptions.find(r => r.key === uiState.selectedRankFilter)?.label}`}
-                    {uiState.selectedRankFilter === null && uiState.selectedFeatureFilter === null && ` • High Priority (Rank 1 & 2)`}
-                    {uiState.searchTerm && ` • Search: "${uiState.searchTerm}"`}
-                  </span>
-                </div>
-              </div>
-              
-              {(uiState.selectedFeatureFilter || uiState.selectedRankFilter || uiState.searchTerm) && (
-                <button onClick={() => updateUiState({
-                  selectedFeatureFilter: null, selectedRankFilter: null, searchTerm: '', currentPage: 1,
-                  showFeatureDropdown: false, showRankDropdown: false
-                })} className="clear-all-btn">
-                  Clear All Filters
-                </button>
-              )}
-            </div>
+          <div className="stat-grid">
+            {[1, 2, 3, 4].map(rank => (
+              <button
+                key={rank}
+                className={`stat-tile card ${uiState.selectedRankFilter === rank ? 'active' : ''}`}
+                onClick={() => rankStats[`rank${rank}`] > 0 && handleFilter('rank', rank)}
+                disabled={rankStats[`rank${rank}`] === 0}
+              >
+                <span className={`stat-dot rank-dot-${rank}`} />
+                <span className="stat-label">Rank {rank}</span>
+                <span className="stat-value">{rankStats[`rank${rank}`]}</span>
+                <span className="stat-hint">{rankDescriptions[rank]}</span>
+              </button>
+            ))}
+          </div>
 
-            <div className="dropdown-filters-row">
+          <div className="results-panel card">
+            <div className="toolbar">
+              <div className="search-field">
+                <Search size={16} className="search-icon" />
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Search S.No. or publication number"
+                  value={uiState.searchTerm}
+                  onChange={(e) => updateUiState({ searchTerm: e.target.value, currentPage: 1 })}
+                />
+              </div>
+
               <FilterDropdown
                 type="feature"
                 options={featureOptions}
@@ -415,121 +448,126 @@ const Screening = ({
                 setShow={(show) => updateUiState({ showRankDropdown: show, showFeatureDropdown: false })}
               />
 
-              <button onClick={exportResults} className="export-button">
-                <Download size={16} className="export-button-icon" />
-                Export Results
+              <div className="toolbar-spacer" />
+
+              {(uiState.selectedFeatureFilter || uiState.selectedRankFilter !== null || uiState.searchTerm) && (
+                <button onClick={() => updateUiState({
+                  selectedFeatureFilter: null, selectedRankFilter: null, searchTerm: '', currentPage: 1,
+                  showFeatureDropdown: false, showRankDropdown: false
+                })} className="btn btn-ghost">
+                  Clear filters
+                </button>
+              )}
+
+              <button onClick={exportResults} className="btn btn-secondary">
+                <Download size={16} />
+                Export
               </button>
             </div>
-          </div>
 
-          <div className="search-container">
-            <input
-              type="text"
-              placeholder="Search patent or publication number..."
-              value={uiState.searchTerm}
-              onChange={(e) => updateUiState({ searchTerm: e.target.value, currentPage: 1 })}
-              className="search-input"
-            />
-          </div>
+            <p className="results-summary">
+              Showing {filteredResults.length} of {stats.total} patents
+              {uiState.selectedFeatureFilter && ` · ${featureLabel(uiState.selectedFeatureFilter)}`}
+              {uiState.selectedRankFilter !== null && ` · ${rankOptions.find(r => r.key === uiState.selectedRankFilter)?.label}`}
+              {uiState.selectedRankFilter === null && uiState.selectedFeatureFilter === null && ' · High priority (Rank 1 & 2)'}
+              {uiState.searchTerm && ` · “${uiState.searchTerm}”`}
+            </p>
 
-          <div className="table-container">
-            <table className="results-table">
-              <thead className="table-header">
-                <tr>
-                  {!uiState.selectedFeatureFilter && <th className="table-header-cell">Rank</th>}
-                  <th className="table-header-cell">S.No.</th>
-                  <th className="table-header-cell">Publication</th>
-                  
-                  {!uiState.selectedFeatureFilter && features.map((feature, index) => (
-                    <th key={index} className="table-header-cell">{feature}</th>
-                  ))}
-                  
-                  {uiState.selectedFeatureFilter && (
-                    <th className="table-header-cell feature-highlight">
-                      {features[parseInt(uiState.selectedFeatureFilter.split('_')[1]) - 1]}
-                    </th>
-                  )}
-                  
-                  <th className="table-header-cell">Analysis Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedResults.map((result, index) => (
-                  <tr key={index} className="table-row">
-                    {!uiState.selectedFeatureFilter && (
-                      <td className="table-cell table-cell-center">
-                        <span className={`rank-badge ${
-                          result.rank ? `rank-${result.rank}` : 'rank-none'
-                        }`}>
-                          {result.rank || '-'}
-                        </span>
-                      </td>
-                    )}
-                    <td className="table-cell table-cell-center">
-                      <span className="table-cell-claim">{result.claimNumber}</span>
-                    </td>
-                    <td className="table-cell table-cell-center">
-                      {result.publicationNumber && result.publicationNumber !== 'N/A' ? (
-                        <a href={`https://patents.google.com/patent/${result.publicationNumber}`}
-                          target="_blank" rel="noopener noreferrer" className="publication-link"
-                          title={`View ${result.publicationNumber} on Google Patents`}>
-                          {result.publicationNumber}
-                        </a>
-                      ) : (
-                        <span className="table-cell-publication">N/A</span>
-                      )}
-                    </td>
-                    
-                    {!uiState.selectedFeatureFilter && features.map((feature, featureIndex) => (
-                      <td key={featureIndex} className="table-cell table-cell-center">
-                        <span className={`badge ${result[`feature_${featureIndex + 1}`] ? 'badge-yes' : 'badge-no'}`}>
-                          {result[`feature_${featureIndex + 1}`] ? 'Yes' : 'No'}
-                        </span>
-                      </td>
+            <div className="table-scroll">
+              <table className="results-table">
+                <thead>
+                  <tr>
+                    {!uiState.selectedFeatureFilter && <th>Rank</th>}
+                    <th>S.No.</th>
+                    <th>Publication</th>
+                    {!uiState.selectedFeatureFilter && features.map((feature, index) => (
+                      <th key={index} className="th-feature" title={feature}>{feature}</th>
                     ))}
-                    
                     {uiState.selectedFeatureFilter && (
-                      <td className="table-cell table-cell-center feature-highlight-cell">
-                        <span className={`badge ${result[uiState.selectedFeatureFilter] ? 'badge-yes' : 'badge-no'}`}>
-                          {result[uiState.selectedFeatureFilter] ? 'Yes' : 'No'}
-                        </span>
-                      </td>
+                      <th className="th-feature">{featureLabel(uiState.selectedFeatureFilter)}</th>
                     )}
-                    
-                    <td className="table-cell table-cell-center">
-                      <button 
-                        className="details-btn"
-                        onClick={() => {
-                          updateUiState({ selectedAnalysis: result, showAnalysisModal: true });
-                          document.body.style.overflow = 'hidden';
-                        }}
-                        disabled={!result.detailed_analysis || (result.rank !== 1 && result.rank !== 2)}
-                        title={result.rank === 1 || result.rank === 2 ? "View detailed analysis" : "Analysis details only available for Rank 1 & 2 patents"}
-                      >
-                        <Eye size={14} />
-                      </button>
-                    </td>
+                    <th className="th-right">Details</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedResults.length === 0 && (
+                    <tr>
+                      <td colSpan={features.length + 4} className="table-empty">
+                        No patents match these filters.
+                      </td>
+                    </tr>
+                  )}
+                  {paginatedResults.map((result, index) => (
+                    <tr key={index}>
+                      {!uiState.selectedFeatureFilter && (
+                        <td>
+                          <span className={`rank-badge ${result.rank ? `rank-${result.rank}` : 'rank-none'}`}>
+                            {result.rank || '–'}
+                          </span>
+                        </td>
+                      )}
+                      <td className="td-number">{result.claimNumber}</td>
+                      <td>
+                        {result.publicationNumber && result.publicationNumber !== 'N/A' ? (
+                          <a href={`https://patents.google.com/patent/${result.publicationNumber}`}
+                            target="_blank" rel="noopener noreferrer" className="publication-link"
+                            title={`View ${result.publicationNumber} on Google Patents`}>
+                            {result.publicationNumber}
+                            <ExternalLink size={12} />
+                          </a>
+                        ) : (
+                          <span className="muted">N/A</span>
+                        )}
+                      </td>
+                      
+                      {!uiState.selectedFeatureFilter && features.map((feature, featureIndex) => (
+                        <td key={featureIndex}>
+                          <span className={`match ${result[`feature_${featureIndex + 1}`] ? 'match-yes' : 'match-no'}`}>
+                            {result[`feature_${featureIndex + 1}`] ? 'Yes' : 'No'}
+                          </span>
+                        </td>
+                      ))}
+                      
+                      {uiState.selectedFeatureFilter && (
+                        <td>
+                          <span className={`match ${result[uiState.selectedFeatureFilter] ? 'match-yes' : 'match-no'}`}>
+                            {result[uiState.selectedFeatureFilter] ? 'Yes' : 'No'}
+                          </span>
+                        </td>
+                      )}
+                      
+                      <td className="td-right">
+                        <button 
+                          className="icon-btn"
+                          onClick={() => {
+                            updateUiState({ selectedAnalysis: result, showAnalysisModal: true });
+                            document.body.style.overflow = 'hidden';
+                          }}
+                          disabled={!result.detailed_analysis || (result.rank !== 1 && result.rank !== 2)}
+                          title={result.rank === 1 || result.rank === 2 ? 'View detailed analysis' : 'Details are available for Rank 1 & 2 patents'}
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          {totalPages > 1 && (
-            <div className="pagination">
-              <p className="pagination-info">
-                Showing <span className="pagination-info-bold">{((uiState.currentPage - 1) * resultsPerPage) + 1}</span> to <span className="pagination-info-bold">{Math.min(uiState.currentPage * resultsPerPage, filteredResults.length)}</span> of <span className="pagination-info-bold">{filteredResults.length}</span> results
-              </p>
-              <div className="pagination-controls">
-                <button
-                  onClick={() => updateUiState({ currentPage: Math.max(1, uiState.currentPage - 1) })}
-                  disabled={uiState.currentPage === 1}
-                  className="pagination-button"
-                >
-                  Previous
-                </button>
-                
-                <div className="pagination-numbers">
+            {totalPages > 1 && (
+              <div className="pagination">
+                <p className="pagination-info">
+                  {((uiState.currentPage - 1) * resultsPerPage) + 1}–{Math.min(uiState.currentPage * resultsPerPage, filteredResults.length)} of {filteredResults.length}
+                </p>
+                <div className="pagination-controls">
+                  <button
+                    onClick={() => updateUiState({ currentPage: Math.max(1, uiState.currentPage - 1) })}
+                    disabled={uiState.currentPage === 1}
+                    className="page-btn"
+                  >
+                    Previous
+                  </button>
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     let pageNum;
                     if (totalPages <= 5) pageNum = i + 1;
@@ -541,123 +579,93 @@ const Screening = ({
                       <button
                         key={pageNum}
                         onClick={() => updateUiState({ currentPage: pageNum })}
-                        className={`pagination-button ${uiState.currentPage === pageNum ? 'active' : ''}`}
+                        className={`page-btn ${uiState.currentPage === pageNum ? 'active' : ''}`}
                       >
                         {pageNum}
                       </button>
                     );
                   })}
+                  <button
+                    onClick={() => updateUiState({ currentPage: Math.min(totalPages, uiState.currentPage + 1) })}
+                    disabled={uiState.currentPage === totalPages}
+                    className="page-btn"
+                  >
+                    Next
+                  </button>
                 </div>
-                
-                <button
-                  onClick={() => updateUiState({ currentPage: Math.min(totalPages, uiState.currentPage + 1) })}
-                  disabled={uiState.currentPage === totalPages}
-                  className="pagination-button"
-                >
-                  Next
-                </button>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </section>
       )}
 
+      {/* ===== DETAIL MODAL ===== */}
       {uiState.showAnalysisModal && uiState.selectedAnalysis?.detailed_analysis && (
-        <div className="modal-overlay" onClick={() => {
-          updateUiState({ showAnalysisModal: false, selectedAnalysis: null });
-          document.body.style.overflow = 'unset';
-        }}>
+        <div className="modal-overlay" onClick={closeAnalysisModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Detailed Analysis - Claim {uiState.selectedAnalysis.claimNumber}</h2>
-              <button className="close-btn" onClick={() => {
-                updateUiState({ showAnalysisModal: false, selectedAnalysis: null });
-                document.body.style.overflow = 'unset';
-              }}>×</button>
-            </div>
-            
-            <div className="modal-content">
-              <div className="claim-info">
-                <div className="claim-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">Patent:</span>
-                    <span className="meta-value">{uiState.selectedAnalysis.publicationNumber || 'N/A'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Rank:</span>
-                    <span className="meta-value">
-                      {uiState.selectedAnalysis.rank ? `${uiState.selectedAnalysis.rank} (${uiState.selectedAnalysis.featureCount}/${features.length} features)` : `No Rank (0/${features.length} features)`}
-                    </span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Analysis Date:</span>
-                    <span className="meta-value">{new Date().toLocaleDateString()}</span>
-                  </div>
+              <div>
+                <h2 className="modal-title">Claim {uiState.selectedAnalysis.claimNumber}</h2>
+                <div className="modal-meta">
+                  <span>{uiState.selectedAnalysis.publicationNumber || 'N/A'}</span>
+                  <span className={`rank-badge ${uiState.selectedAnalysis.rank ? `rank-${uiState.selectedAnalysis.rank}` : 'rank-none'}`}>
+                    {uiState.selectedAnalysis.rank ? `Rank ${uiState.selectedAnalysis.rank}` : 'No rank'}
+                  </span>
+                  <span>{uiState.selectedAnalysis.featureCount}/{features.length} features matched</span>
                 </div>
               </div>
-
-              <div className="analysis-grid">
-                {features.map((feature, index) => {
-                  const featureKey = `feature_${index + 1}`;
-                  const featureAnalysis = uiState.selectedAnalysis.detailed_analysis[featureKey];
-                  
-                  if (uiState.selectedFeatureFilter && uiState.selectedFeatureFilter !== featureKey) return null;
-                  if (!featureAnalysis) return (
-                    <div key={featureKey} className="feature-analysis absent">
-                      <div className="feature-header">
-                        <div className="feature-name"><span>✗</span>{feature}</div>
-                        <div className="confidence-score confidence-low">No Data</div>
-                      </div>
-                      <div className="feature-details">
-                        <h4>Analysis Reasoning:</h4>
-                        <p>No analysis data available for this feature.</p>
-                        <div className="error-note">
-                          <strong>Note:</strong> Expected key "{featureKey}" not found in analysis results.
-                        </div>
-                      </div>
+              <button className="icon-btn" onClick={closeAnalysisModal}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              {features.map((feature, index) => {
+                const featureKey = `feature_${index + 1}`;
+                const featureAnalysis = uiState.selectedAnalysis.detailed_analysis[featureKey];
+                
+                if (uiState.selectedFeatureFilter && uiState.selectedFeatureFilter !== featureKey) return null;
+                if (!featureAnalysis) return (
+                  <div key={featureKey} className="analysis-item">
+                    <div className="analysis-item-header">
+                      <span className="match match-no">No data</span>
+                      <h3 className="analysis-feature">{feature}</h3>
                     </div>
-                  );
+                    <p className="analysis-reasoning">No analysis data available for this feature.</p>
+                  </div>
+                );
 
-                  const confidenceClass = featureAnalysis.confidence?.toLowerCase() === 'high' ? 'confidence-high' : 
-                                        featureAnalysis.confidence?.toLowerCase() === 'medium' ? 'confidence-medium' : 'confidence-low';
+                const confidence = featureAnalysis.confidence?.toLowerCase();
+                const confidenceClass = confidence === 'high' ? 'confidence-high' : 
+                                        confidence === 'medium' ? 'confidence-medium' : 'confidence-low';
 
-                  return (
-                    <div key={featureKey} className={`feature-analysis ${featureAnalysis.present ? 'present' : 'absent'}`}>
-                      <div className="feature-header">
-                        <div className="feature-name">
-                          <span>{featureAnalysis.present ? '✓' : '✗'}</span>
-                          {featureAnalysis.feature_name || feature}
-                        </div>
-                        <div className={`confidence-score ${confidenceClass}`}>
-                          {featureAnalysis.confidence || 'Unknown'} Confidence
-                        </div>
-                      </div>
-                      <div className="feature-details">
-                        <h4>Analysis Reasoning:</h4>
-                        <p>{featureAnalysis.reasoning || 'No reasoning provided'}</p>
-                        
-                        {featureAnalysis.relevant_claims && featureAnalysis.relevant_claims !== 'N/A' && (
-                          <>
-                            <h4>Relevant Claims:</h4>
-                            <div className="claims-found">
-                              <span className="claim-tag">{featureAnalysis.relevant_claims}</span>
-                            </div>
-                          </>
-                        )}
-                        
-                        {!featureAnalysis.relevant_claims && featureAnalysis.relevant_text && featureAnalysis.relevant_text !== 'N/A' && (
-                          <>
-                            <h4>Relevant Text:</h4>
-                            <div className="claims-found">
-                              <span className="claim-tag">{featureAnalysis.relevant_text}</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                return (
+                  <div key={featureKey} className="analysis-item">
+                    <div className="analysis-item-header">
+                      <span className={`match ${featureAnalysis.present ? 'match-yes' : 'match-no'}`}>
+                        {featureAnalysis.present ? 'Present' : 'Absent'}
+                      </span>
+                      <h3 className="analysis-feature">{featureAnalysis.feature_name || feature}</h3>
+                      <span className={`confidence ${confidenceClass}`}>
+                        {featureAnalysis.confidence || 'Unknown'} confidence
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                    <p className="analysis-reasoning">{featureAnalysis.reasoning || 'No reasoning provided'}</p>
+                    
+                    {featureAnalysis.relevant_claims && featureAnalysis.relevant_claims !== 'N/A' && (
+                      <p className="analysis-claims">
+                        <span>Relevant claims</span> {featureAnalysis.relevant_claims}
+                      </p>
+                    )}
+                    
+                    {!featureAnalysis.relevant_claims && featureAnalysis.relevant_text && featureAnalysis.relevant_text !== 'N/A' && (
+                      <p className="analysis-claims">
+                        <span>Relevant text</span> {featureAnalysis.relevant_text}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

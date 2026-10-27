@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lightbulb, Target, Zap, Layers, Search, List, X } from 'lucide-react';
+import { Lightbulb, Target, Zap, Layers, Search, List, X, ArrowRight, FileSpreadsheet, ListChecks, ShieldCheck, ChevronRight } from 'lucide-react';
 import './Home.css';
 
 const Home = ({ onNavigate }) => {
@@ -8,7 +8,7 @@ const Home = ({ onNavigate }) => {
   const modalData = {
     objective: {
       title: "Objective",
-      icon: <Lightbulb size={32} className="icon-blue" />,
+      icon: <Lightbulb size={20} />,
       content: `
         <h3>Freedom to Operate Analysis</h3>
         <p>Our comprehensive FTO analysis provides a systematic approach to patent landscape evaluation. This process involves:</p>
@@ -23,7 +23,7 @@ const Home = ({ onNavigate }) => {
     },
     searchObjective: {
       title: "Search Objective",
-      icon: <Target size={32} className="icon-blue" />,
+      icon: <Target size={20} />,
       content: `
         <h3>Comprehensive Patent Conflict Detection</h3>
         <p>Our search methodology focuses on identifying patents that could pose infringement risks:</p>
@@ -37,7 +37,7 @@ const Home = ({ onNavigate }) => {
     },
     features: {
       title: "Features",
-      icon: <Zap size={32} className="icon-blue" />,
+      icon: <Zap size={20} />,
       content: `
         <h3>Advanced Feature Recognition System</h3>
         <p>Our platform employs sophisticated feature extraction and comparison algorithms:</p>
@@ -51,7 +51,7 @@ const Home = ({ onNavigate }) => {
     },
     methodology: {
       title: "Methodology",
-      icon: <Layers size={32} className="icon-blue" />,
+      icon: <Layers size={20} />,
       content: `
         <h3>AI-Based Patent Evaluation Framework</h3>
         <p>Our methodology combines multiple AI techniques for comprehensive patent analysis:</p>
@@ -66,7 +66,7 @@ const Home = ({ onNavigate }) => {
     },
     searchStrategy: {
       title: "Search Strategy",
-      icon: <Search size={32} className="icon-blue" />,
+      icon: <Search size={20} />,
       content: `
         <h3>Multi-Database Patent Intelligence</h3>
         <p>Our search strategy leverages multiple data sources and search techniques:</p>
@@ -82,7 +82,7 @@ const Home = ({ onNavigate }) => {
     },
     assumptions: {
       title: "Assumptions",
-      icon: <List size={32} className="icon-blue" />,
+      icon: <List size={20} />,
       content: `
         <h3>Legal and Technical Limitations</h3>
         <p>Important considerations and limitations of automated patent analysis:</p>
@@ -120,65 +120,119 @@ const Home = ({ onNavigate }) => {
   const overviewCards = [
     {
       id: 'objective',
-      icon: <Lightbulb size={32} className="icon-blue" />,
+      icon: <Lightbulb size={20} />,
       title: 'Objective',
       description: 'Conduct Freedom to Operate (FTO) analysis on a large volume of patent claims through an automated, AI-driven system.'
     },
     {
       id: 'searchObjective',
-      icon: <Target size={32} className="icon-blue" />,
+      icon: <Target size={20} />,
       title: 'Search Objective',
       description: 'Detect potentially conflicting patents to mitigate infringement risks across critical technological areas.'
     },
     {
       id: 'features',
-      icon: <Zap size={32} className="icon-blue" />,
+      icon: <Zap size={20} />,
       title: 'Features',
       description: 'Identifies and evaluates relevant features of the developed product against existing patents for FTO analysis.'
     },
     {
       id: 'methodology',
-      icon: <Layers size={32} className="icon-blue" />,
+      icon: <Layers size={20} />,
       title: 'Methodology',
       description: 'Utilizes AI-based reasoning to evaluate and rank patents based on feature recognition and similarity metrics.'
     },
     {
       id: 'searchStrategy',
-      icon: <Search size={32} className="icon-blue" />,
+      icon: <Search size={20} />,
       title: 'Search Strategy',
       description: 'Patent data is sourced from leading databases using a combination of keywords, classification codes, and jurisdictional filters.'
     },
     {
       id: 'assumptions',
-      icon: <List size={32} className="icon-blue" />,
+      icon: <List size={20} />,
       title: 'Assumptions',
       description: 'While automated tools assist the process, legal conclusions and infringement assessments require qualified patent attorneys or legal experts for validation.'
     }
   ];
 
+  const steps = [
+    {
+      icon: <FileSpreadsheet size={20} />,
+      title: 'Upload patent claims',
+      description: 'An Excel file with S.No., Publication Number and Claims columns.'
+    },
+    {
+      icon: <ListChecks size={20} />,
+      title: 'Describe your product',
+      description: 'List the key features of the product you want to clear.'
+    },
+    {
+      icon: <ShieldCheck size={20} />,
+      title: 'Review ranked risks',
+      description: 'Each claim is checked against every feature and ranked by overlap.'
+    }
+  ];
+
   return (
     <>
-      <div className="module-content">
-        <div className="section">
-          <div className="home-header">
-            <h1 className="home-title">Welcome to FTOlyzer</h1>
-            <p className="home-subtitle">AI-powered patent analysis platform for Freedom to Operate studies</p>
+      <div className="home">
+        <section className="home-hero card">
+          <div className="hero-text">
+            <span className="hero-eyebrow">Freedom to Operate screening</span>
+            <h2 className="hero-title">Find the patents that could block your product, before they do.</h2>
+            <p className="hero-subtitle">
+              FTOlyzer reads every patent claim, checks it against your product's features with AI,
+              and ranks the claims that overlap most so your team knows where to look first.
+            </p>
+            <div className="hero-actions">
+              <button className="btn btn-primary btn-lg" onClick={() => onNavigate('screening')}>
+                Start screening
+                <ArrowRight size={18} />
+              </button>
+              <button className="btn btn-secondary btn-lg" onClick={() => openModal('methodology')}>
+                How ranking works
+              </button>
+            </div>
+          </div>
+
+          <ol className="hero-steps">
+            {steps.map((step, index) => (
+              <li key={step.title} className="hero-step">
+                <span className="hero-step-icon">{step.icon}</span>
+                <div>
+                  <span className="hero-step-number">Step {index + 1}</span>
+                  <h3 className="hero-step-title">{step.title}</h3>
+                  <p className="hero-step-description">{step.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section>
+          <div className="home-section-header">
+            <h2 className="home-section-title">About the analysis</h2>
+            <p className="home-section-subtitle">Select a topic to read more.</p>
           </div>
 
           <div className="overview-grid">
             {overviewCards.map((card) => (
-              <div 
+              <button
                 key={card.id}
-                className="overview-card clickable-card" 
+                className="overview-card card"
                 onClick={() => openModal(card.id)}
               >
-                <div className="card-icon">{card.icon}</div>
+                <div className="overview-card-top">
+                  <span className="card-icon">{card.icon}</span>
+                  <ChevronRight size={18} className="card-chevron" />
+                </div>
                 <h3 className="card-title">{card.title}</h3>
                 <p className="card-description">{card.description}</p>
-              </div>
+              </button>
             ))}
           </div>
-        </div>
+        </section>
       </div>
 
       {activeModal && (
@@ -186,11 +240,11 @@ const Home = ({ onNavigate }) => {
           <div className="home-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="home-modal-header">
               <div className="home-modal-title-section">
-                {modalData[activeModal].icon}
+                <span className="card-icon">{modalData[activeModal].icon}</span>
                 <h2 className="home-modal-title">{modalData[activeModal].title}</h2>
               </div>
-              <button className="home-modal-close" onClick={closeModal}>
-                <X size={24} />
+              <button className="icon-btn" onClick={closeModal}>
+                <X size={20} />
               </button>
             </div>
             <div className="home-modal-body">

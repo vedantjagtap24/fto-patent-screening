@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Filter, BarChart, Home as HomeIcon, User, Moon, Sun, LogOut, Clock } from 'lucide-react';
+import { Filter, BarChart3, Home as HomeIcon, Moon, Sun, LogOut, Clock, FileSearch, ChevronDown } from 'lucide-react';
 import { supabase, signOut } from '../../lib/supabase';
 import Home from './Home/Home';
 import Screening from './Screening/Screening';
@@ -296,10 +296,14 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   // Navigation items
   const navigationItems = [
-    { id: 'home', label: 'Home', icon: HomeIcon },
-    { id: 'screening', label: 'Screening', icon: Filter },
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart }
+    { id: 'home', label: 'Overview', icon: HomeIcon, subtitle: 'How FTOlyzer screens patents for you' },
+    { id: 'screening', label: 'Screening', icon: Filter, subtitle: 'Upload claims, define features and run the analysis' },
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart3, subtitle: 'Insights across your analyses' }
   ];
+  const activeItem = navigationItems.find(item => item.id === activeModule) || navigationItems[0];
+
+  const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'User';
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   // Component render functions
   const renderActiveModule = () => {
@@ -319,7 +323,7 @@ const MainLayout = ({ user, session, onLogout }) => {
     switch (activeModule) {
       case 'home': return <Home onNavigate={setActiveModule} />;
       case 'screening': return <Screening {...moduleProps} />;
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <Dashboard onNavigate={setActiveModule} />;
       default: return <Home onNavigate={setActiveModule} />;
     }
   };
@@ -340,16 +344,22 @@ const MainLayout = ({ user, session, onLogout }) => {
     }
   };
 
+  const statusLabel = backendStatus === 'connected' ? 'All systems online' :
+                      backendStatus === 'checking' ? 'Connecting…' : 'Server offline';
+
   return (
-    <div className="dashboard-layout">
+    <div className="app-shell">
       {/* Sidebar */}
-      <div className="sidebar">
-        <div className="sidebar-header">
-          <h1 className="sidebar-title">FTOlyzer</h1>
-          <p className="sidebar-subtitle">Patent Analysis Platform</p>
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="brand-mark">
+            <FileSearch size={18} />
+          </div>
+          <span className="brand-name">FTOlyzer</span>
         </div>
         
         <nav className="sidebar-nav">
+          <span className="nav-section-label">Workspace</span>
           {navigationItems.map((item) => {
             const IconComponent = item.icon;
             return (
@@ -358,7 +368,7 @@ const MainLayout = ({ user, session, onLogout }) => {
                 onClick={() => setActiveModule(item.id)}
                 className={`nav-item ${activeModule === item.id ? 'nav-item-active' : ''}`}
               >
-                <IconComponent size={20} className="nav-icon" />
+                <IconComponent size={18} className="nav-icon" />
                 <span className="nav-label">{item.label}</span>
               </button>
             );
@@ -368,86 +378,86 @@ const MainLayout = ({ user, session, onLogout }) => {
         <div className="sidebar-footer">
           {/* Processing status */}
           {appState.isProcessing && (
-            <div className="processing-status">
+            <div className="processing-card">
               <div className="processing-header">
                 <Clock size={14} />
-                <span className="processing-text">
-                  Analyzing: {Math.round(appState.progress)}%
-                </span>
-              </div>
-              <div className="processing-details">
-                {appState.processedCount}/{appState.claims.length} patents • {formatElapsedTime(appState.elapsedTime)}
+                <span>Analyzing · {Math.round(appState.progress)}%</span>
               </div>
               <div className="processing-bar">
-                <div 
-                  className="processing-fill" 
-                  style={{ width: `${appState.progress}%` }}
-                />
+                <div className="processing-fill" style={{ width: `${appState.progress}%` }} />
+              </div>
+              <div className="processing-details">
+                {appState.processedCount}/{appState.claims.length} patents · {formatElapsedTime(appState.elapsedTime)}
               </div>
             </div>
           )}
 
           {/* System status */}
           <div className="status-indicator">
-            <div className={`status-dot ${
-              backendStatus === 'connected' ? '' : 
-              backendStatus === 'checking' ? 'status-dot-yellow' : 'status-dot-red'
-            }`}></div>
-            <span className="status-text">
-              {backendStatus === 'connected' ? 'System Online' : 
-               backendStatus === 'checking' ? 'Connecting...' : 'System Offline'}
-            </span>
+            <span className={`status-dot status-${backendStatus}`} />
+            <span>{statusLabel}</span>
           </div>
         </div>
-      </div>
+      </aside>
 
       {/* Main Content Area */}
-      <div className="main-content-area">
-        {/* Top Header */}
-        <div className="top-header">
-          <div className="header-left">
-            {/* Left side content if needed */}
+      <div className="main-area">
+        <header className="top-header">
+          <div className="header-title">
+            <h1>{activeItem.label}</h1>
+            <p>{activeItem.subtitle}</p>
           </div>
-          <div className="header-right">
-            <div className="user-profile-section" ref={dropdownRef}>
-              <button className="profile-trigger" onClick={toggleDropdown}>
-                <div className="user-avatar">
-                  <User size={18} />
-                </div>
+
+          <div className="header-actions">
+            <button className="icon-btn" onClick={toggleDarkMode} title={darkMode ? 'Light mode' : 'Dark mode'}>
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
+            <div className="user-menu" ref={dropdownRef}>
+              <button className="user-trigger" onClick={toggleDropdown}>
+                <span className="user-avatar">{initials}</span>
+                <span className="user-name">{displayName}</span>
+                <ChevronDown size={16} className="user-chevron" />
               </button>
 
               {isDropdownOpen && (
-                <div className="profile-dropdown">
+                <div className="user-dropdown">
                   <div className="dropdown-user-info">
-                    <span className="dropdown-username">
-                      {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
-                    </span>
-                    <span className="dropdown-email">
-                      {user?.email}
-                    </span>
+                    <span className="dropdown-username">{displayName}</span>
+                    <span className="dropdown-email">{user?.email}</span>
                   </div>
-                  <div className="dropdown-divider"></div>
                   <button className="dropdown-item" onClick={toggleDarkMode}>
                     {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-                    <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                    <span>{darkMode ? 'Light mode' : 'Dark mode'}</span>
                   </button>
-                  <div className="dropdown-divider"></div>
-                  <button className="dropdown-item logout-item" onClick={handleLogout}>
+                  <button className="dropdown-item dropdown-item-danger" onClick={handleLogout}>
                     <LogOut size={16} />
-                    <span>Logout</span>
+                    <span>Sign out</span>
                   </button>
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Main Content */}
-        <div className="main-content">
+        {/* Mobile navigation */}
+        <nav className="mobile-nav">
+          {navigationItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveModule(item.id)}
+              className={`mobile-nav-item ${activeModule === item.id ? 'active' : ''}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <main className="main-content">
           <div className="content-wrapper">
             {renderActiveModule()}
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
