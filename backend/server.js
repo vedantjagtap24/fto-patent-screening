@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -19,6 +20,12 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+// Demo mode: the finished analysis is shown but nothing that would spend OpenAI
+// credits or overwrite it is allowed. Set ANALYSIS_LOCKED=false to run analyses.
+const ANALYSIS_LOCKED = process.env.ANALYSIS_LOCKED !== 'false';
+const LOCKED_MESSAGE = 'This demo shows a completed analysis. Running new analyses is turned off.';
+
+app.use(compression());
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 
@@ -97,6 +104,7 @@ app.get('/health', (req, res) => {
     port,
     env: process.env.NODE_ENV || 'development',
     openaiConfigured: !!process.env.OPENAI_API_KEY,
+    analysisLocked: ANALYSIS_LOCKED,
     supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
     buildPath: buildPath || 'Not found'
   });
@@ -180,7 +188,7 @@ const claimRoutes = {
           claims_text: claim.Claims || claim.claims || claim.Claim || claim.claim || '',
           raw_data: claim
         }))
-      ).select()
+      ).select('id')
     );
 
     result.success && !result.error ? res.json({ success: true, saved: result.data.length }) :
@@ -189,9 +197,11 @@ const claimRoutes = {
 
   get: async (req, res) => {
     const { projectId } = req.params;
+    // Claim text is large (tens of MB for big files), so it's only sent when asked for
+    const columns = req.query.full ? 'claim_number, publication_number, claims_text' : 'claim_number, publication_number';
     try {
       const claims = await fetchAll(
-        () => supabase.from('patent_claims').select('*').eq('project_id', projectId).order('claim_number', { ascending: true })
+        () => supabase.from('patent_claims').select(columns).eq('project_id', projectId).order('claim_number', { ascending: true })
       );
       res.json({ success: true, claims });
     } catch (error) {
@@ -299,6 +309,18 @@ const rateLimitDelay = (error) => {
 const MAX_RATE_LIMIT_WAITS = 30;
 
 const isFailedRow = (row) => !!row.detailed_analysis?.feature_1?.reasoning?.startsWith(FAILED_PREFIX);
+
+// Results of completed projects, cleared whenever a project's data changes
+const resultsCache = new Map();
+const clearResultsCache = (req, res, next) => {
+  resultsCache.delete(req.params.projectId);
+  next();
+};
+
+const blockWhenLocked = (req, res, next) => {
+  if (ANALYSIS_LOCKED) return res.status(403).json({ error: 'locked', message: LOCKED_MESSAGE });
+  next();
+};
 
 // Analyses running in this server process, keyed by project id. A project marked
 // 'processing' that isn't in here was interrupted (e.g. by a redeploy).
@@ -489,6 +511,10 @@ const analysisRoutes = {
   getResults: async (req, res) => {
     const { projectId } = req.params;
 
+    // Finished runs don't change, so serve them from memory after the first load
+    const cached = resultsCache.get(projectId);
+    if (cached && !activeRuns.has(projectId)) return res.json(cached);
+
     try {
       const [resultsData, featuresData] = await Promise.all([
         fetchAll(() => supabase.from('analysis_summary').select(`*, patent_claims (claim_number, publication_number)`).eq('project_id', projectId).order('created_at', { ascending: true }).order('claim_id', { ascending: true })),
@@ -519,22 +545,25 @@ const analysisRoutes = {
         return formatted;
       });
 
-      res.json({ success: true, results: formattedResults, features: featureNames });
+      const body = { success: true, results: formattedResults, features: featureNames };
+      const { data: project } = await supabase.from('projects').select('status').eq('id', projectId).single();
+      if (project?.status === 'completed' && !activeRuns.has(projectId)) resultsCache.set(projectId, body);
+      res.json(body);
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch results', message: error.message });
     }
   }
 };
 
-app.post('/api/projects', authenticateUser, projectRoutes.create);
+app.post('/api/projects', authenticateUser, blockWhenLocked, projectRoutes.create);
 app.get('/api/projects', authenticateUser, projectRoutes.list);
-app.post('/api/projects/:projectId/features', authenticateUser, featureRoutes.save);
+app.post('/api/projects/:projectId/features', authenticateUser, blockWhenLocked, clearResultsCache, featureRoutes.save);
 app.get('/api/projects/:projectId/features', authenticateUser, featureRoutes.get);
-app.post('/api/projects/:projectId/claims', authenticateUser, claimRoutes.save);
+app.post('/api/projects/:projectId/claims', authenticateUser, blockWhenLocked, clearResultsCache, claimRoutes.save);
 app.get('/api/projects/:projectId/claims', authenticateUser, claimRoutes.get);
-app.post('/api/projects/:projectId/analyze', authenticateUser, analysisRoutes.analyze);
+app.post('/api/projects/:projectId/analyze', authenticateUser, blockWhenLocked, clearResultsCache, analysisRoutes.analyze);
 app.get('/api/projects/:projectId/status', authenticateUser, analysisRoutes.status);
-app.post('/api/projects/:projectId/cancel', authenticateUser, analysisRoutes.cancel);
+app.post('/api/projects/:projectId/cancel', authenticateUser, blockWhenLocked, analysisRoutes.cancel);
 app.get('/api/projects/:projectId/results', authenticateUser, analysisRoutes.getResults);
 
 app.post('/analyze-all-claims', (req, res) => {

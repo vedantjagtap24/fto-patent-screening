@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { UploadCloud, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X, Search, ChevronDown, RotateCcw, ExternalLink, FileSpreadsheet, Info, Square } from 'lucide-react';
+import { UploadCloud, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X, Search, ChevronDown, RotateCcw, ExternalLink, FileSpreadsheet, Info, Square, Lock, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import './Screening.css';
 
@@ -7,12 +7,14 @@ const Screening = ({
   backendStatus, file, setFile, claims, setClaims, isProcessing, progress, results, error, setError,
   processedCount, currentlyProcessing, elapsedTime, features, addFeature, removeFeature,
   startBulkScreening, resumeAnalysis, cancelAnalysis, clearAllData, formatElapsedTime, notice,
-  progressTotal, etaMs, resumable, runFailed, lastFailure, throttled
+  progressTotal, etaMs, resumable, runFailed, lastFailure, throttled,
+  analysisLocked, loadClaimTexts, dataLoading
 }) => {
   const [uiState, setUiState] = useState({
     searchTerm: '', currentPage: 1, selectedRankFilter: null, selectedFeatureFilter: null,
     showAnalysisModal: false, selectedAnalysis: null, newFeature: '',
-    showFeatureDropdown: false, showRankDropdown: false
+    showFeatureDropdown: false, showRankDropdown: false,
+    showLockedModal: false, exporting: false
   });
 
   const updateUiState = (updates) => setUiState(prev => ({ ...prev, ...updates }));
@@ -124,17 +126,30 @@ const Screening = ({
     updateUiState(updates);
   };
 
-  const exportResults = () => {
+  const exportResults = async () => {
     if (results.length === 0) return;
     const filteredResults = getFilteredResults(processResultsWithRanking(results));
     if (filteredResults.length === 0) return alert('No results to export. Please adjust your filters.');
 
+    // Claims loaded from the server come without their text; fetch it for the export
+    let claimText = (result) => (claims.find(c => (c['S.No.'] || claims.indexOf(c) + 1) === result.claimNumber) || {}).Claims || '';
+    if (claims.length > 0 && claims[0].Claims === undefined) {
+      updateUiState({ exporting: true });
+      try {
+        const texts = await loadClaimTexts();
+        claimText = (result) => texts.get(result.claimNumber) || '';
+      } catch (err) {
+        setError('Could not load claim text for the export: ' + err.message);
+      } finally {
+        updateUiState({ exporting: false });
+      }
+    }
+
     const exportData = filteredResults.map((result) => {
-      const originalClaim = claims.find(c => (c['S.No.'] || claims.indexOf(c) + 1) === result.claimNumber) || {};
       const data = {
         'S.No.': result.claimNumber,
         'Publication Number': result.publicationNumber || '',
-        'Claims': originalClaim.Claims || '',
+        'Claims': claimText(result),
         'Rank': result.rank || 'No Rank',
         'Feature Count': `${result.featureCount}/${features.length}`
       };
@@ -273,6 +288,24 @@ const Screening = ({
             </div>
           </div>
 
+          {analysisLocked || (dataLoading && claims.length === 0) ? (
+            <div className={`dropzone dropzone-static ${claims.length > 0 ? 'has-file' : ''}`}>
+              {claims.length > 0 ? (
+                <>
+                  <FileSpreadsheet size={28} className="dropzone-icon" />
+                  <span className="dropzone-title">Patent claims dataset</span>
+                  <span className="dropzone-meta">
+                    <CheckCircle size={14} /> {claims.length} patents loaded
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Loader2 size={28} className="dropzone-icon spin" />
+                  <span className="dropzone-title">Loading dataset…</span>
+                </>
+              )}
+            </div>
+          ) : (
           <label htmlFor="file-upload" className={`dropzone ${claims.length > 0 ? 'has-file' : ''}`}>
             <input
               type="file"
@@ -298,6 +331,7 @@ const Screening = ({
               </>
             )}
           </label>
+          )}
         </section>
 
         <section className="setup-card card">
@@ -309,6 +343,7 @@ const Screening = ({
             </div>
           </div>
 
+          {!analysisLocked && (
           <div className="feature-input-row">
             <input
               type="text"
@@ -327,6 +362,7 @@ const Screening = ({
               Add
             </button>
           </div>
+          )}
 
           {features.length > 0 ? (
             <ol className="feature-list">
@@ -334,14 +370,16 @@ const Screening = ({
                 <li key={index} className="feature-item">
                   <span className="feature-index">{index + 1}</span>
                   <span className="feature-text">{feature}</span>
-                  <button className="icon-btn feature-remove" onClick={() => removeFeature(index)} title="Remove feature">
-                    <X size={14} />
-                  </button>
+                  {!analysisLocked && (
+                    <button className="icon-btn feature-remove" onClick={() => removeFeature(index)} title="Remove feature">
+                      <X size={14} />
+                    </button>
+                  )}
                 </li>
               ))}
             </ol>
           ) : (
-            <p className="feature-empty">No features yet. Add one at a time and press Enter.</p>
+            <p className="feature-empty">{dataLoading ? 'Loading features…' : 'No features yet. Add one at a time and press Enter.'}</p>
           )}
         </section>
       </div>
@@ -360,6 +398,14 @@ const Screening = ({
               </p>
             </div>
           </div>
+          {analysisLocked ? (
+          <div className="run-actions">
+            <button onClick={() => updateUiState({ showLockedModal: true })} className="btn btn-primary btn-lg">
+              <Play size={16} />
+              Run analysis
+            </button>
+          </div>
+          ) : (
           <div className="run-actions">
             {(claims.length > 0 || features.length > 0 || results.length > 0) && !isProcessing && (
               <button className="btn btn-ghost" onClick={clearAllData}>
@@ -392,6 +438,7 @@ const Screening = ({
               </button>
             )}
           </div>
+          )}
         </div>
 
         {isProcessing && (
@@ -440,6 +487,13 @@ const Screening = ({
         </div>
       )}
 
+      {dataLoading && results.length === 0 && (
+        <div className="results-loading card">
+          <Loader2 size={18} className="spin" />
+          Loading results…
+        </div>
+      )}
+
       {/* ===== RESULTS ===== */}
       {results.length > 0 && (
         <section className="results">
@@ -456,7 +510,7 @@ const Screening = ({
               <AlertCircle size={18} />
               <p>
                 {failedResults.length} of {results.length} patents failed to analyze ({failedReason}).
-                {resumable ? ' Use the Retry or Resume button above to try them again.' : ''}
+                {resumable && !analysisLocked ? ' Use the Retry or Resume button above to try them again.' : ''}
               </p>
             </div>
           )}
@@ -517,9 +571,9 @@ const Screening = ({
                 </button>
               )}
 
-              <button onClick={exportResults} className="btn btn-secondary">
-                <Download size={16} />
-                Export
+              <button onClick={exportResults} className="btn btn-secondary" disabled={uiState.exporting}>
+                {uiState.exporting ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+                {uiState.exporting ? 'Preparing…' : 'Export'}
               </button>
             </div>
 
@@ -655,6 +709,30 @@ const Screening = ({
             )}
           </div>
         </section>
+      )}
+
+      {/* ===== DEMO LOCK MODAL ===== */}
+      {uiState.showLockedModal && (
+        <div className="modal-overlay" onClick={() => updateUiState({ showLockedModal: false })}>
+          <div className="modal locked-modal" onClick={(e) => e.stopPropagation()}>
+            <span className="locked-icon"><Lock size={22} /></span>
+            <h2 className="modal-title">Analysis already completed</h2>
+            <p className="locked-text">
+              This demo shows a finished screening of {claims.length || progressTotal} patents against {features.length} product features.
+              Running a new analysis is turned off because every run uses paid OpenAI credits.
+            </p>
+            <p className="locked-text">The full results are below. Filter by rank or feature, open any patent's reasoning, or export to Excel.</p>
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={() => {
+                updateUiState({ showLockedModal: false });
+                document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              View results
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ===== DETAIL MODAL ===== */}

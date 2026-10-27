@@ -178,6 +178,17 @@
   text-align: center;
 }
 
+/* Read-only dataset box in demo mode */
+.dropzone-static,
+.dropzone-static:hover {
+  cursor: default;
+}
+
+.dropzone-static:not(.has-file):hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
 /* ===== RUN BAR ===== */
 .run-bar {
   padding: 1.25rem 1.5rem;
@@ -684,6 +695,45 @@ body.dark-mode .rank-3 { color: #facc15; }
 .page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ===== LOADING / DEMO LOCK ===== */
+.results-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: var(--text-3);
+}
+
+.locked-modal {
+  max-width: 460px;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.locked-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.locked-text {
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.locked-modal .btn {
+  margin-top: 0.5rem;
+  width: 100%;
 }
 
 /* ===== DETAIL MODAL ===== */

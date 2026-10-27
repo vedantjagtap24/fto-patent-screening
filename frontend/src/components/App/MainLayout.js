@@ -12,6 +12,7 @@ const MainLayout = ({ user, session, onLogout }) => {
   const [darkMode, setDarkMode] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [backendStatus, setBackendStatus] = useState('checking');
+  const [analysisLocked, setAnalysisLocked] = useState(false);
   const dropdownRef = useRef(null);
 
   // Project and Processing State (consolidated)
@@ -35,7 +36,9 @@ const MainLayout = ({ user, session, onLogout }) => {
     resumable: false,
     runFailed: 0,
     lastFailure: null,
-    throttled: false
+    throttled: false,
+    dataLoading: true,
+    claimsFromServer: false
   });
   const cancelRequested = useRef(false);
   // Where the time-remaining estimate is measured from; excludes upload time
@@ -74,8 +77,8 @@ const MainLayout = ({ user, session, onLogout }) => {
   }, [appState.isProcessing, appState.startTime]);
 
   // A run that is no longer going: show the results so far and offer to resume
-  const showStoppedRun = async (id, { status, processed, total, message }) => {
-    const resultsData = processed > 0 ? await apiCall(`/api/projects/${id}/results`) : { results: [] };
+  const showStoppedRun = async (id, { status, processed, total, message }, preloaded) => {
+    const resultsData = preloaded || (processed > 0 ? await apiCall(`/api/projects/${id}/results`) : { results: [] });
     const results = resultsData.results || [];
     const finished = status === 'completed';
     const notices = {
@@ -185,6 +188,8 @@ const MainLayout = ({ user, session, onLogout }) => {
     try {
       const response = await fetch('/health');
       setBackendStatus(response.ok ? 'connected' : 'error');
+      const health = await response.json();
+      setAnalysisLocked(!!health.analysisLocked);
     } catch (error) {
       setBackendStatus('error');
     }
@@ -194,45 +199,49 @@ const MainLayout = ({ user, session, onLogout }) => {
     try {
       if (!session) return;
 
-      // Get user's projects
       const projectsData = await apiCall('/api/projects');
-      
-      if (projectsData.success && projectsData.projects.length > 0) {
-        // Load the most recent project
-        const latestProject = projectsData.projects[0];
-        
-        // Load project features
-        const featuresData = await apiCall(`/api/projects/${latestProject.id}/features`);
-        const features = featuresData.success ? featuresData.features.map(f => f.name) : [];
-        
-        // Load project claims
-        const claimsData = await apiCall(`/api/projects/${latestProject.id}/claims`);
-        const claims = claimsData.success ? claimsData.claims.map(c => ({
-          'S.No.': c.claim_number,
-          'Publication Number': c.publication_number,
-          'Claims': c.claims_text,
-          ...c.raw_data
-        })) : [];
-        
-        setAppState(prev => ({
-          ...prev,
-          currentProject: latestProject,
-          features,
-          claims
-        }));
+      const latestProject = projectsData.success && projectsData.projects[0];
+      if (!latestProject) return;
 
-        // A run still going is picked up by polling; otherwise show its results
-        const statusData = await apiCall(`/api/projects/${latestProject.id}/status`);
-        if (statusData.status === 'processing') {
-          rateStart.current = null;
-          updateAppState({ isProcessing: true, phase: 'analyzing', startTime: Date.now(), elapsedTime: 0 });
-        } else if (statusData.processed > 0 || statusData.status === 'interrupted') {
-          await showStoppedRun(latestProject.id, statusData);
-        }
+      // Everything for the latest project loads at once. Claims come without their
+      // text, which is only fetched when it's needed (export).
+      const base = `/api/projects/${latestProject.id}`;
+      const [featuresData, claimsData, statusData, resultsData] = await Promise.all([
+        apiCall(`${base}/features`),
+        apiCall(`${base}/claims`),
+        apiCall(`${base}/status`),
+        apiCall(`${base}/results`)
+      ]);
+
+      setAppState(prev => ({
+        ...prev,
+        currentProject: latestProject,
+        features: featuresData.success ? featuresData.features.map(f => f.name) : [],
+        claims: claimsData.success ? claimsData.claims.map(c => ({
+          'S.No.': c.claim_number,
+          'Publication Number': c.publication_number
+        })) : [],
+        claimsFromServer: true
+      }));
+
+      // A run still going is picked up by polling; otherwise show its results
+      if (statusData.status === 'processing') {
+        rateStart.current = null;
+        updateAppState({ isProcessing: true, phase: 'analyzing', startTime: Date.now(), elapsedTime: 0 });
+      } else if (statusData.processed > 0 || statusData.status === 'interrupted') {
+        await showStoppedRun(latestProject.id, statusData, resultsData);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+    } finally {
+      updateAppState({ dataLoading: false });
     }
+  };
+
+  // Full claim text for export, fetched on demand when claims came from the server
+  const loadClaimTexts = async () => {
+    const data = await apiCall(`/api/projects/${appState.currentProject.id}/claims?full=1`);
+    return new Map(data.claims.map(c => [c.claim_number, c.claims_text]));
   };
 
   const formatElapsedTime = (milliseconds) => {
@@ -351,9 +360,11 @@ const MainLayout = ({ user, session, onLogout }) => {
       }
 
       await saveFeatures(project.id, appState.features);
-      await saveClaims(project.id, appState.claims, (saved) => {
-        updateAppState({ currentlyProcessing: `Uploading claims: ${saved} of ${total}…` });
-      });
+      if (!appState.claimsFromServer) {
+        await saveClaims(project.id, appState.claims, (saved) => {
+          updateAppState({ currentlyProcessing: `Uploading claims: ${saved} of ${total}…` });
+        });
+      }
 
       if (cancelRequested.current) {
         updateAppState({ isProcessing: false, phase: null, currentlyProcessing: '', notice: 'Analysis cancelled before it started. Nothing was analyzed.' });
@@ -438,7 +449,8 @@ const MainLayout = ({ user, session, onLogout }) => {
       etaMs: null,
       resumable: false,
       runFailed: 0,
-      lastFailure: null
+      lastFailure: null,
+      claimsFromServer: false
     });
   };
 
@@ -459,10 +471,12 @@ const MainLayout = ({ user, session, onLogout }) => {
       backendStatus,
       ...appState,
       setFile: (file) => updateAppState({ file }),
-      setClaims: (claims) => updateAppState({ claims, resumable: false }),
+      setClaims: (claims) => updateAppState({ claims, resumable: false, claimsFromServer: false }),
       setError: (error) => updateAppState({ error }),
       addFeature,
       removeFeature,
+      analysisLocked,
+      loadClaimTexts,
       startBulkScreening,
       resumeAnalysis,
       cancelAnalysis,
@@ -471,7 +485,7 @@ const MainLayout = ({ user, session, onLogout }) => {
     };
 
     switch (activeModule) {
-      case 'home': return <Home onNavigate={setActiveModule} />;
+      case 'home': return <Home onNavigate={setActiveModule} analysisLocked={analysisLocked} />;
       case 'screening': return <Screening {...moduleProps} />;
       case 'dashboard': return <Dashboard onNavigate={setActiveModule} />;
       default: return <Home onNavigate={setActiveModule} />;

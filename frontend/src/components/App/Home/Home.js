@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lightbulb, Target, Zap, Layers, Search, List, X, ArrowRight, FileSpreadsheet, ListChecks, ShieldCheck, ChevronRight } from 'lucide-react';
 import './Home.css';
 
-const Home = ({ onNavigate }) => {
+const Home = ({ onNavigate, analysisLocked }) => {
   const [activeModal, setActiveModal] = useState(null);
 
   const modalData = {
@@ -187,7 +187,7 @@ const Home = ({ onNavigate }) => {
             </p>
             <div className="hero-actions">
               <button className="btn btn-primary btn-lg" onClick={() => onNavigate('screening')}>
-                Start screening
+                {analysisLocked ? 'View the completed analysis' : 'Start screening'}
                 <ArrowRight size={18} />
               </button>
               <button className="btn btn-secondary btn-lg" onClick={() => openModal('methodology')}>
