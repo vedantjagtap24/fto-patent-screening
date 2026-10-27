@@ -265,8 +265,6 @@ code {
   background: rgba(255, 255, 255, 0.16);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 /* Frosted panel that sits on a blueprint background */

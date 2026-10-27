@@ -646,6 +646,10 @@ const MainLayout = ({ user, session, onLogout }) => {
           <div className="content-wrapper">
             {renderActiveModule()}
           </div>
+          <footer className="app-credit">
+            FTOlyzer · Developed by <strong>Vedant Jagtap</strong> ·{' '}
+            <a href="mailto:vsj7589@nyu.edu">vsj7589@nyu.edu</a>
+          </footer>
         </main>
       </div>
     </div>

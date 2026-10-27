@@ -88,7 +88,7 @@ const Dashboard = ({ onNavigate, results = [], features = [], dataLoading }) => 
           </div>
           <div className="glass dash-tile">
             <span className="dash-tile-label">Most common feature</span>
-            <span className="dash-tile-value dash-tile-text" title={stats.mostCommon?.name}>{stats.mostCommon?.name}</span>
+            <span className="dash-tile-value dash-tile-text">{stats.mostCommon?.name}</span>
             <span className="dash-tile-hint">found in {formatPercent(stats.mostCommon?.share || 0)} of patents</span>
           </div>
         </div>
@@ -166,14 +166,14 @@ const Dashboard = ({ onNavigate, results = [], features = [], dataLoading }) => 
             <h3>Features found together</h3>
             <p>How many patents contain both features. Stronger color means more overlap; the striped diagonal is each feature on its own.</p>
           </header>
-          <div className="heatmap" style={{ gridTemplateColumns: `minmax(120px, 1.4fr) repeat(${features.length}, minmax(56px, 1fr))` }}>
+          <div className="heatmap" style={{ gridTemplateColumns: `minmax(160px, 2fr) repeat(${features.length}, minmax(56px, 1fr))` }}>
             <span />
             {features.map((name, j) => (
               <span key={name} className="heatmap-col" title={name}>F{j + 1}</span>
             ))}
             {features.map((rowName, i) => (
               <React.Fragment key={rowName}>
-                <span className="heatmap-row" title={rowName}><b>F{i + 1}</b> {rowName}</span>
+                <span className="heatmap-row"><b>F{i + 1}</b> <span>{rowName}</span></span>
                 {stats.cooccurrence[i].map((value, j) => (
                   <span
                     key={j}

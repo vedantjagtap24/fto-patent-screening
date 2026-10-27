@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, FileSearch, Info } from 'lucide-react';
 import { signIn } from '../../lib/supabase';
 import LoginScene from './LoginScene';
@@ -114,11 +114,20 @@ const Login = ({ onLogin }) => {
     return formState.isLoading || !formState.email || !formState.password;
   };
 
-  const stats = [
-    { value: '3,056', label: 'patents' },
-    { value: '4', label: 'product features' },
-    { value: '~15 min', label: 'per full run' }
-  ];
+  // Numbers about the latest completed run, so this page always matches the data
+  const [summary, setSummary] = useState(null);
+  useEffect(() => {
+    fetch('/api/public/summary')
+      .then(response => response.json())
+      .then(setSummary)
+      .catch(() => setSummary({ available: false }));
+  }, []);
+
+  const stats = summary?.available ? [
+    { value: summary.patents.toLocaleString(), label: 'patents screened' },
+    { value: summary.features.length, label: summary.features.length === 1 ? 'product feature' : 'product features' },
+    { value: summary.highPriority.toLocaleString(), label: 'high-priority patents' }
+  ] : [];
 
   return (
     <div className="login-page">
@@ -140,7 +149,7 @@ const Login = ({ onLogin }) => {
             Upload thousands of patent claims, describe your product, and FTOlyzer checks every claim
             against every feature, then ranks the ones that could block you.
           </p>
-          <dl className="login-stats">
+          <dl className={`login-stats ${stats.length ? 'is-ready' : ''}`}>
             {stats.map(stat => (
               <div key={stat.label}>
                 <dt>{stat.value}</dt>
@@ -148,12 +157,16 @@ const Login = ({ onLogin }) => {
               </div>
             ))}
           </dl>
-          <LoginScene />
+          <LoginScene summary={summary} />
         </section>
 
         <main className="login-card">
           <h1 className="login-title">Sign in</h1>
-          <p className="login-subtitle">See a completed screening of 3,056 surgical-robotics patents.</p>
+          <p className="login-subtitle">
+            {summary?.available
+              ? `See a completed screening of ${summary.patents.toLocaleString()} patents against ${summary.features.length} product features.`
+              : 'Sign in to screen patent claims against your product features.'}
+          </p>
 
           {DEMO_EMAIL && DEMO_PASSWORD && (
             <div className="demo-note">
@@ -211,6 +224,11 @@ const Login = ({ onLogin }) => {
           </div>
 
           <p className="login-disclaimer">Preliminary analysis only. Final conclusions should be reviewed by patent counsel.</p>
+
+          <p className="login-credit">
+            Developed by <strong>Vedant Jagtap</strong>
+            <a href="mailto:vsj7589@nyu.edu">vsj7589@nyu.edu</a>
+          </p>
         </main>
       </div>
     </div>

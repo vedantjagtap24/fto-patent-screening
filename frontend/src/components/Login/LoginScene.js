@@ -1,19 +1,24 @@
 import React, { useRef } from 'react';
 import { Check, X } from 'lucide-react';
 import useCountUp from '../../hooks/useCountUp';
+import { rankFor } from '../App/Screening/resultsFilter';
 
-const FEATURES = [
-  { label: 'Robotic-assisted instruments', match: true },
-  { label: 'Minimally invasive design', match: true },
-  { label: 'Tremor reduction', match: true },
-  { label: 'Biomimetic hand design', match: false }
-];
+// Shown until the live summary loads, or when there is no completed run yet
+const SAMPLE_FEATURES = ['Feature one', 'Feature two', 'Feature three', 'Feature four'];
 
 // Animated hero for the login page: a patent sheet being scanned while feature
 // checks and a rank verdict appear beside it. Leans gently toward the pointer.
-const LoginScene = () => {
+const LoginScene = ({ summary }) => {
   const sceneRef = useRef(null);
-  const screened = useCountUp(3056);
+  const live = summary?.available;
+  const screened = useCountUp(live ? summary.patents : 0);
+
+  // The scene checks up to four of the run's real features: all match but the
+  // last, so the verdict shows a rank below the top one
+  const featureNames = (live && summary.features.length ? summary.features : SAMPLE_FEATURES).slice(0, 4);
+  const matched = Math.max(1, featureNames.length - 1);
+  const chips = featureNames.map((label, i) => ({ label, match: i < matched }));
+  const verdictRank = rankFor(matched, featureNames.length);
 
   const handlePointerMove = (e) => {
     const el = sceneRef.current;
@@ -45,7 +50,7 @@ const LoginScene = () => {
 
           <text x="24" y="38" className="sheet-number">US 11,678,945 B2</text>
           <rect x="214" y="26" width="62" height="16" rx="8" className="sheet-tag" />
-          <text x="245" y="37.5" className="sheet-tag-text" textAnchor="middle">PATENT</text>
+          <text x="245" y="37.5" className="sheet-tag-text" textAnchor="middle">Patent</text>
           <line x1="24" y1="54" x2="276" y2="54" className="sheet-rule" />
 
           {/* FIG. 1 drawing with reference numerals */}
@@ -68,7 +73,7 @@ const LoginScene = () => {
           </g>
           <text x="230" y="84" className="sheet-fig">FIG. 1</text>
 
-          <text x="24" y="226" className="sheet-fig">CLAIMS</text>
+          <text x="24" y="226" className="sheet-fig">Claims</text>
           {[0, 1, 2, 3, 4].map(i => (
             <rect
               key={i}
@@ -86,24 +91,29 @@ const LoginScene = () => {
           </g>
         </svg>
 
+        <div className="scene-checks">
         <ul className="scene-chips">
-          {FEATURES.map((feature, i) => (
+          {chips.map((feature, i) => (
             <li key={feature.label} className={`scene-chip scene-chip-${i} ${feature.match ? 'is-match' : 'is-miss'}`}>
               <span className="scene-chip-icon">{feature.match ? <Check size={13} /> : <X size={13} />}</span>
-              {feature.label}
+              <span className="scene-chip-label">{feature.label}</span>
             </li>
           ))}
         </ul>
 
+        {/* The verdict follows the checks, so long feature names push it down instead of overlapping */}
         <div className="scene-verdict">
-          <span className="scene-verdict-rank">Rank 2</span>
-          <span className="scene-verdict-text">3 of 4 features matched</span>
+          <span className="scene-verdict-rank">Rank {verdictRank}</span>
+          <span className="scene-verdict-text">{matched} of {featureNames.length} features matched</span>
+        </div>
         </div>
 
-        <div className="scene-counter">
-          <span className="scene-counter-value">{screened.toLocaleString()}</span>
-          <span className="scene-counter-label">patents screened</span>
-        </div>
+        {live && (
+          <div className="scene-counter">
+            <span className="scene-counter-value">{screened.toLocaleString()}</span>
+            <span className="scene-counter-label">patents screened</span>
+          </div>
+        )}
       </div>
     </div>
   );

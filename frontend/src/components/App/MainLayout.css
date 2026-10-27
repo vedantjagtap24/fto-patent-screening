@@ -60,8 +60,6 @@
   padding: 0 0.75rem 0.5rem;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--text-3);
 }
 
@@ -320,6 +318,29 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+}
+
+.app-credit {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.5rem 2rem 2rem;
+  font-size: 13px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.app-credit strong {
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.app-credit a {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+.app-credit a:hover {
+  text-decoration: underline;
 }
 
 /* ===== SMALL SCREENS ===== */

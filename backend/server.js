@@ -426,6 +426,45 @@ const countRows = async (table, projectId) => {
   return count || 0;
 };
 
+// Aggregate numbers for the sign-in page, which loads before anyone is signed in.
+// Only counts and feature names from the latest completed project; no patent data.
+const SUMMARY_TTL_MS = 60 * 1000;
+let summaryCache = { at: 0, body: null };
+
+const publicSummary = async (req, res) => {
+  if (summaryCache.body && Date.now() - summaryCache.at < SUMMARY_TTL_MS) return res.json(summaryCache.body);
+
+  try {
+    const { data: projects, error } = await supabase.from('projects').select('id')
+      .eq('status', 'completed').order('updated_at', { ascending: false }).limit(1);
+    if (error) throw error;
+
+    let body = { available: false };
+    const project = projects?.[0];
+    if (project) {
+      const [patents, features, highPriority] = await Promise.all([
+        countRows('patent_claims', project.id),
+        supabase.from('features').select('name').eq('project_id', project.id).order('order_index', { ascending: true }),
+        supabase.from('analysis_summary').select('*', { count: 'exact', head: true }).eq('project_id', project.id).in('rank', [1, 2])
+      ]);
+      if (features.error) throw features.error;
+      if (highPriority.error) throw highPriority.error;
+
+      body = {
+        available: patents > 0,
+        patents,
+        features: (features.data || []).map(f => f.name),
+        highPriority: highPriority.count || 0
+      };
+    }
+
+    summaryCache = { at: Date.now(), body };
+    res.json(body);
+  } catch (error) {
+    res.json({ available: false });
+  }
+};
+
 const analysisRoutes = {
   analyze: async (req, res) => {
     const { projectId } = req.params;
@@ -565,6 +604,8 @@ app.post('/api/projects/:projectId/analyze', authenticateUser, blockWhenLocked, 
 app.get('/api/projects/:projectId/status', authenticateUser, analysisRoutes.status);
 app.post('/api/projects/:projectId/cancel', authenticateUser, blockWhenLocked, analysisRoutes.cancel);
 app.get('/api/projects/:projectId/results', authenticateUser, analysisRoutes.getResults);
+
+app.get('/api/public/summary', publicSummary);
 
 app.post('/analyze-all-claims', (req, res) => {
   res.status(400).json({
