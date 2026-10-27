@@ -7,11 +7,11 @@
   overflow: hidden;
   color: #fff;
   /* Blueprint grid over a bright blue gradient */
-  background-color: #2f5be0;
+  background-color: var(--bp-base);
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(150deg, #4374f5 0%, #2c52d6 55%, #2240b0 100%);
+    linear-gradient(var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(150deg, var(--bp-light) 0%, var(--bp-mid) 55%, var(--bp-deep) 100%);
   background-size: 32px 32px, 32px 32px, 100% 100%;
 }
 
@@ -28,7 +28,7 @@
   height: 520px;
   top: -180px;
   left: 35%;
-  background: rgba(125, 211, 252, 0.45);
+  background: var(--bp-glow-cool);
 }
 
 .login-glow-2 {
@@ -36,7 +36,7 @@
   height: 420px;
   bottom: -200px;
   left: -120px;
-  background: rgba(167, 139, 250, 0.35);
+  background: var(--bp-glow-warm);
   animation-delay: -9s;
 }
 

@@ -89,7 +89,7 @@
   justify-content: center;
   border-radius: var(--radius-sm);
   background: #fff;
-  color: #2c52d6;
+  color: var(--bp-mid);
 }
 
 .hero-step-number {

@@ -45,6 +45,16 @@
   --rank-4-ink: #3b1406;
   --rank-none: #98a2b3;
 
+  /* Blueprint background shared by the login page and the hero panels.
+     A muted, slightly deep blue so it reads calm rather than bright. */
+  --bp-base: #3a54a8;
+  --bp-light: #4b67c2;
+  --bp-mid: #3a54a8;
+  --bp-deep: #2e448c;
+  --bp-glow-cool: rgba(147, 197, 253, 0.2);
+  --bp-glow-warm: rgba(167, 139, 250, 0.14);
+  --bp-grid: rgba(255, 255, 255, 0.045);
+
   /* Sequential blue for the co-occurrence heatmap, low to high */
   --seq-1: #cde2fb;
   --seq-2: #9ec5f4;
@@ -247,13 +257,13 @@ code {
   position: relative;
   overflow: hidden;
   color: #fff;
-  background-color: #2f5be0;
+  background-color: var(--bp-base);
   background-image:
-    radial-gradient(circle at 85% -10%, rgba(125, 211, 252, 0.45), transparent 45%),
-    radial-gradient(circle at -5% 110%, rgba(167, 139, 250, 0.3), transparent 45%),
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(150deg, #4374f5 0%, #2c52d6 55%, #2240b0 100%);
+    radial-gradient(circle at 85% -10%, var(--bp-glow-cool), transparent 45%),
+    radial-gradient(circle at -5% 110%, var(--bp-glow-warm), transparent 45%),
+    linear-gradient(var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(150deg, var(--bp-light) 0%, var(--bp-mid) 55%, var(--bp-deep) 100%);
   background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px, 100% 100%;
   border-radius: var(--radius-lg);
 }
@@ -277,7 +287,7 @@ code {
 
 .btn-light {
   background: #fff;
-  color: #2240b0;
+  color: var(--bp-deep);
 }
 
 .btn-light:hover:not(:disabled) {
