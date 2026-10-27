@@ -261,23 +261,29 @@ async function saveAnalysisResults(projectId, claimId, features, analysisResult)
   return { rank, featureCount };
 }
 
-const FAILED_REASONING = "Analysis failed - unable to process claim";
+const FAILED_PREFIX = "Analysis failed";
 
-const failedAnalysis = (featureNames) => {
+// Short, readable reason for a failed OpenAI call or save, e.g. "429 You exceeded your current quota"
+const describeError = (error) => {
+  const message = (error?.error?.message || error?.message || 'Unknown error').split('\n')[0];
+  return `${error?.status ? `${error.status} ` : ''}${message}`.slice(0, 200);
+};
+
+const failedAnalysis = (featureNames, reason) => {
   const analysis = {};
   featureNames.forEach((feature, index) => {
     analysis[`feature_${index + 1}`] = {
       feature_name: feature,
       present: false,
       confidence: "Low",
-      reasoning: FAILED_REASONING,
+      reasoning: `${FAILED_PREFIX} - ${reason}`,
       relevant_claims: "N/A"
     };
   });
   return analysis;
 };
 
-const isFailedRow = (row) => row.detailed_analysis?.feature_1?.reasoning === FAILED_REASONING;
+const isFailedRow = (row) => !!row.detailed_analysis?.feature_1?.reasoning?.startsWith(FAILED_PREFIX);
 
 // Analyses running in this server process, keyed by project id. A project marked
 // 'processing' that isn't in here was interrupted (e.g. by a redeploy).
@@ -322,6 +328,13 @@ async function runAnalysis(projectId, run, resume) {
           const analysis = await analyzeSingleClaim(claim.claims_text, claim.claim_number, featureNames);
           await saveAnalysisResults(projectId, claim.id, featureNames, analysis);
         } catch (error) {
+          const reason = describeError(error);
+          run.failed += 1;
+          run.lastFailure = reason;
+          if (run.failed <= 5 || run.failed % 50 === 0) {
+            console.error(`Claim ${claim.claim_number} failed (${run.failed} so far):`, reason);
+          }
+
           if (error?.code === 'insufficient_quota') {
             // Every remaining claim would fail the same way, so stop here
             run.cancelled = true;
@@ -335,7 +348,7 @@ async function runAnalysis(projectId, run, resume) {
             rank: null,
             feature_count: 0,
             total_features: featureNames.length,
-            detailed_analysis: failedAnalysis(featureNames)
+            detailed_analysis: failedAnalysis(featureNames, reason)
           }]);
         }
       }
@@ -387,7 +400,7 @@ const analysisRoutes = {
       }
       await supabase.from('projects').update({ status: 'processing' }).eq('id', projectId);
 
-      const run = { cancelled: false };
+      const run = { cancelled: false, failed: 0, lastFailure: null };
       activeRuns.set(projectId, run);
       runErrors.delete(projectId);
       res.status(202).json({ success: true, started: true, total: claimCount });
@@ -419,6 +432,9 @@ const analysisRoutes = {
         status: run?.cancelled ? 'cancelling' : project.status,
         processed,
         total,
+        // Failures in the run that is going now, with the most recent reason
+        failed: run?.failed || 0,
+        lastFailure: run?.lastFailure || null,
         message: runErrors.get(projectId)
       });
     } catch (error) {

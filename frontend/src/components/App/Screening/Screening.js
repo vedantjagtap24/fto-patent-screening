@@ -7,7 +7,7 @@ const Screening = ({
   backendStatus, file, setFile, claims, setClaims, isProcessing, progress, results, error, setError,
   processedCount, currentlyProcessing, elapsedTime, features, addFeature, removeFeature,
   startBulkScreening, resumeAnalysis, cancelAnalysis, clearAllData, formatElapsedTime, notice,
-  progressTotal, etaMs, resumable
+  progressTotal, etaMs, resumable, runFailed, lastFailure
 }) => {
   const [uiState, setUiState] = useState({
     searchTerm: '', currentPage: 1, selectedRankFilter: null, selectedFeatureFilter: null,
@@ -255,6 +255,11 @@ const Screening = ({
 
   const canStart = claims.length > 0 && features.length > 0 && !isProcessing && backendStatus === 'connected';
 
+  // Claims the server couldn't analyze; the reason is stored in place of the AI's reasoning
+  const failedResults = results.filter(r => r.detailed_analysis?.feature_1?.reasoning?.startsWith('Analysis failed'));
+  const failedReason = (lastFailure || failedResults[0]?.detailed_analysis.feature_1.reasoning || '')
+    .replace(/^Analysis failed - /, '');
+
   return (
     <div className="screening">
       {/* ===== SETUP ===== */}
@@ -375,7 +380,9 @@ const Screening = ({
                 </button>
                 <button onClick={resumeAnalysis} disabled={backendStatus !== 'connected'} className="btn btn-primary btn-lg">
                   <Play size={16} />
-                  Resume ({processedCount} of {progressTotal} done)
+                  {processedCount < progressTotal
+                    ? `Resume (${processedCount} of ${progressTotal} done)`
+                    : `Retry ${failedResults.length} failed`}
                 </button>
               </>
             ) : (
@@ -391,7 +398,10 @@ const Screening = ({
           <div className="progress">
             <div className="progress-row">
               <span className="progress-percent">{Math.round(progress)}%</span>
-              <span className="progress-label">{processedCount} of {progressTotal || claims.length} patents analyzed</span>
+              <span className="progress-label">
+                {processedCount} of {progressTotal || claims.length} patents analyzed
+                {runFailed > 0 && <span className="progress-failed"> · {runFailed} failed</span>}
+              </span>
               <span className="progress-time">
                 <Clock size={14} /> {formatElapsedTime(elapsedTime)}
                 {etaMs != null && <> · about {formatElapsedTime(etaMs)} left</>}
@@ -401,6 +411,12 @@ const Screening = ({
               <div className="progress-fill" style={{ width: `${progress}%` }} />
             </div>
             {currentlyProcessing && <p className="progress-current">{currentlyProcessing}</p>}
+            {runFailed > 0 && failedReason && (
+              <p className="progress-failure">
+                <AlertCircle size={14} />
+                <span>Latest failure: {failedReason}</span>
+              </p>
+            )}
           </div>
         )}
       </section>
@@ -424,8 +440,21 @@ const Screening = ({
         <section className="results">
           <div className="results-heading">
             <h2 className="results-title">Results</h2>
-            <span className="results-count">{results.length} patents analyzed</span>
+            <span className="results-count">
+              {results.length} patents analyzed
+              {isProcessing && ' so far · updates every 30 seconds'}
+            </span>
           </div>
+
+          {failedResults.length > 0 && !isProcessing && (
+            <div className="alert alert-error">
+              <AlertCircle size={18} />
+              <p>
+                {failedResults.length} of {results.length} patents failed to analyze ({failedReason}).
+                {resumable ? ' Use the Retry or Resume button above to try them again.' : ''}
+              </p>
+            </div>
+          )}
 
           <div className="stat-grid">
             {[1, 2, 3, 4].map(rank => (

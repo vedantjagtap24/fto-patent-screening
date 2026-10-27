@@ -32,7 +32,9 @@ const MainLayout = ({ user, session, onLogout }) => {
     notice: '',
     progressTotal: 0,
     etaMs: null,
-    resumable: false
+    resumable: false,
+    runFailed: 0,
+    lastFailure: null
   });
   const cancelRequested = useRef(false);
   // Where the time-remaining estimate is measured from; excludes upload time
@@ -90,7 +92,8 @@ const MainLayout = ({ user, session, onLogout }) => {
       isProcessing: false,
       phase: null,
       etaMs: null,
-      resumable: !finished && total > 0 && processed < total,
+      // Resume also retries failed claims, so offer it when any failed
+      resumable: total > 0 && (processed < total || results.some(r => r.detailed_analysis?.feature_1?.reasoning?.startsWith('Analysis failed'))),
       notice: finished ? '' : notices[status] || ''
     });
   };
@@ -101,12 +104,13 @@ const MainLayout = ({ user, session, onLogout }) => {
     if (!appState.isProcessing || appState.phase !== 'analyzing' || !projectId) return;
 
     let cancelled = false;
+    let polls = 0;
     const poll = async () => {
       try {
         const data = await apiCall(`/api/projects/${projectId}/status`);
         if (cancelled) return;
 
-        const { status, processed, total } = data;
+        const { status, processed, total, failed, lastFailure } = data;
         if (status === 'processing' || status === 'cancelling') {
           const now = Date.now();
           if (!rateStart.current) rateStart.current = { time: now, processed };
@@ -115,10 +119,19 @@ const MainLayout = ({ user, session, onLogout }) => {
             ? ((now - rateStart.current.time) / doneSinceStart) * (total - processed)
             : null;
 
+          // Refresh the results table every 30s so it fills in while the run goes
+          if (polls++ % 6 === 0) {
+            const resultsData = await apiCall(`/api/projects/${projectId}/results`);
+            if (cancelled) return;
+            updateAppState({ results: resultsData.results || [] });
+          }
+
           updateAppState({
             progress: total ? Math.min(99, Math.round((processed / total) * 100)) : 0,
             processedCount: processed,
             progressTotal: total,
+            runFailed: failed || 0,
+            lastFailure: lastFailure || null,
             etaMs,
             currentlyProcessing: status === 'cancelling'
               ? 'Cancelling after the claims in progress finish…'
@@ -313,6 +326,8 @@ const MainLayout = ({ user, session, onLogout }) => {
       resumable: false,
       etaMs: null,
       progressTotal: total,
+      runFailed: 0,
+      lastFailure: null,
       results: [],
       startTime: Date.now(),
       elapsedTime: 0,
@@ -375,6 +390,9 @@ const MainLayout = ({ user, session, onLogout }) => {
         notice: '',
         resumable: false,
         etaMs: null,
+        runFailed: 0,
+        lastFailure: null,
+        results: [],
         startTime: Date.now(),
         elapsedTime: 0,
         currentlyProcessing: 'Resuming…'
@@ -416,7 +434,9 @@ const MainLayout = ({ user, session, onLogout }) => {
       notice: '',
       progressTotal: 0,
       etaMs: null,
-      resumable: false
+      resumable: false,
+      runFailed: 0,
+      lastFailure: null
     });
   };
 
