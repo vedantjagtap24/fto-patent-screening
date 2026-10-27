@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Filter, BarChart3, Home as HomeIcon, Moon, Sun, LogOut, Clock, FileSearch, ChevronDown } from 'lucide-react';
+import { Filter, Home as HomeIcon, Moon, Sun, LogOut, Clock, FileSearch, ChevronDown } from 'lucide-react';
 import { supabase, signOut } from '../../lib/supabase';
 import Home from './Home/Home';
 import Screening from './Screening/Screening';
-import Dashboard from './Dashboard/Dashboard';
 import './MainLayout.css';
 
 const MainLayout = ({ user, session, onLogout }) => {
@@ -467,9 +466,8 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   // Navigation items
   const navigationItems = [
-    { id: 'home', label: 'Overview', icon: HomeIcon, subtitle: 'How FTOlyzer screens patents for you' },
-    { id: 'screening', label: 'Screening', icon: Filter, subtitle: 'Upload claims, define features and run the analysis' },
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3, subtitle: 'Insights across your analyses' }
+    { id: 'home', label: 'Overview', icon: HomeIcon, subtitle: 'Your latest screening at a glance' },
+    { id: 'screening', label: 'Screening', icon: Filter, subtitle: 'Upload claims, define features and run the analysis' }
   ];
   const activeItem = navigationItems.find(item => item.id === activeModule) || navigationItems[0];
 
@@ -502,17 +500,10 @@ const MainLayout = ({ user, session, onLogout }) => {
           analysisLocked={analysisLocked}
           results={appState.results}
           features={appState.features}
-        />
-      );
-      case 'screening': return <Screening {...moduleProps} />;
-      case 'dashboard': return (
-        <Dashboard
-          onNavigate={setActiveModule}
-          results={appState.results}
-          features={appState.features}
           dataLoading={appState.dataLoading}
         />
       );
+      case 'screening': return <Screening {...moduleProps} />;
       default: return <Home onNavigate={setActiveModule} />;
     }
   };

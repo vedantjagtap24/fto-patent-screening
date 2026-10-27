@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart3, ArrowRight, ExternalLink, Loader2 } from 'lucide-react';
-import useCountUp from '../../../hooks/useCountUp';
 import { computeDashboardStats, formatPercent } from './dashboardStats';
 import './Dashboard.css';
 
@@ -11,6 +10,7 @@ const RANK_ROWS = [
   { key: 4, label: 'Rank 4', hint: '1+', detail: 'at least 1 feature' }
 ];
 
+// Charts for the latest run, shown on the Overview page under the hero.
 // One tooltip for the page; marks report what to show on hover and focus
 const useTooltip = () => {
   const [tip, setTip] = useState(null);
@@ -35,7 +35,6 @@ const useTooltip = () => {
 
 const Dashboard = ({ onNavigate, results = [], features = [], dataLoading }) => {
   const stats = useMemo(() => computeDashboardStats(results, features), [results, features]);
-  const screened = useCountUp(stats.total);
   const { bind, node: tooltip } = useTooltip();
 
   if (dataLoading && results.length === 0) {
@@ -65,35 +64,6 @@ const Dashboard = ({ onNavigate, results = [], features = [], dataLoading }) => 
 
   return (
     <div className="dashboard">
-      {/* ===== HEADLINE ===== */}
-      <section className="dash-hero blueprint">
-        <div className="dash-hero-main">
-          <span className="blueprint-eyebrow">Completed screening</span>
-          <div className="dash-hero-figure">{screened.toLocaleString()}</div>
-          <p className="dash-hero-caption">
-            patents screened against {features.length} product features
-            {stats.failed > 0 && ` · ${stats.failed} could not be analyzed`}
-          </p>
-        </div>
-        <div className="dash-hero-tiles">
-          <div className="glass dash-tile">
-            <span className="dash-tile-label">High priority (Rank 1–2)</span>
-            <span className="dash-tile-value">{stats.highPriority.toLocaleString()}</span>
-            <span className="dash-tile-hint">{formatPercent(stats.highPriorityShare)} of patents</span>
-          </div>
-          <div className="glass dash-tile">
-            <span className="dash-tile-label">Features matched per patent</span>
-            <span className="dash-tile-value">{stats.averageFeatures.toFixed(1)}</span>
-            <span className="dash-tile-hint">average, out of {features.length}</span>
-          </div>
-          <div className="glass dash-tile">
-            <span className="dash-tile-label">Most common feature</span>
-            <span className="dash-tile-value dash-tile-text">{stats.mostCommon?.name}</span>
-            <span className="dash-tile-hint">found in {formatPercent(stats.mostCommon?.share || 0)} of patents</span>
-          </div>
-        </div>
-      </section>
-
       <div className="dash-grid">
         {/* ===== RISK DISTRIBUTION ===== */}
         <section className="card dash-card">
