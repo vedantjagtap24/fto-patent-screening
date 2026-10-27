@@ -272,8 +272,12 @@ const failedAnalysis = (featureNames) => {
   return analysis;
 };
 
+// Analyses running in this server process, keyed by project id. A project marked
+// 'processing' that isn't in here was interrupted (e.g. by a redeploy).
+const activeRuns = new Map();
+
 // Runs after the HTTP response has been sent; progress is read back via /status
-async function runAnalysis(projectId) {
+async function runAnalysis(projectId, run) {
   try {
     const [features, claims] = await Promise.all([
       fetchAll(() => supabase.from('features').select('*').eq('project_id', projectId).order('order_index', { ascending: true })),
@@ -282,7 +286,7 @@ async function runAnalysis(projectId) {
     const featureNames = features.map(f => f.name);
     const batchSize = 10;
 
-    for (let i = 0; i < claims.length; i += batchSize) {
+    for (let i = 0; i < claims.length && !run.cancelled; i += batchSize) {
       const batch = claims.slice(i, i + batchSize);
 
       await Promise.all(batch.map(async (claim) => {
@@ -307,13 +311,16 @@ async function runAnalysis(projectId) {
       }
     }
 
+    // A cancelled run goes back to draft; its partial results stay viewable
     await supabase.from('projects').update({ 
-      status: 'completed',
+      status: run.cancelled ? 'draft' : 'completed',
       updated_at: new Date().toISOString()
     }).eq('id', projectId);
   } catch (error) {
     console.error('Analysis failed for project', projectId, error);
     await supabase.from('projects').update({ status: 'error' }).eq('id', projectId);
+  } finally {
+    activeRuns.delete(projectId);
   }
 }
 
@@ -326,6 +333,10 @@ const countRows = async (table, projectId) => {
 const analysisRoutes = {
   analyze: async (req, res) => {
     const { projectId } = req.params;
+
+    if (activeRuns.has(projectId)) {
+      return res.status(409).json({ error: 'An analysis is already running for this project' });
+    }
 
     try {
       const [featureCount, claimCount] = await Promise.all([
@@ -341,8 +352,10 @@ const analysisRoutes = {
       await supabase.from('analysis_summary').delete().eq('project_id', projectId);
       await supabase.from('projects').update({ status: 'processing' }).eq('id', projectId);
 
+      const run = { cancelled: false };
+      activeRuns.set(projectId, run);
       res.status(202).json({ success: true, started: true, total: claimCount });
-      runAnalysis(projectId);
+      runAnalysis(projectId, run);
     } catch (error) {
       res.status(500).json({ success: false, error: 'Failed to start analysis', message: error.message });
     }
@@ -359,10 +372,29 @@ const analysisRoutes = {
       ]);
       if (error) throw error;
 
-      res.json({ success: true, status: project.status, processed, total });
+      if (project.status === 'processing' && !activeRuns.has(projectId)) {
+        await supabase.from('projects').update({ status: 'draft' }).eq('id', projectId);
+        return res.json({ success: true, status: 'interrupted', processed, total });
+      }
+
+      const run = activeRuns.get(projectId);
+      res.json({ success: true, status: run?.cancelled ? 'cancelling' : project.status, processed, total });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch status', message: error.message });
     }
+  },
+
+  cancel: async (req, res) => {
+    const { projectId } = req.params;
+    const run = activeRuns.get(projectId);
+
+    if (run) {
+      // The loop stops after the current batch of claims
+      run.cancelled = true;
+    } else {
+      await supabase.from('projects').update({ status: 'draft' }).eq('id', projectId).eq('status', 'processing');
+    }
+    res.json({ success: true });
   },
 
   getResults: async (req, res) => {
@@ -413,6 +445,7 @@ app.post('/api/projects/:projectId/claims', authenticateUser, claimRoutes.save);
 app.get('/api/projects/:projectId/claims', authenticateUser, claimRoutes.get);
 app.post('/api/projects/:projectId/analyze', authenticateUser, analysisRoutes.analyze);
 app.get('/api/projects/:projectId/status', authenticateUser, analysisRoutes.status);
+app.post('/api/projects/:projectId/cancel', authenticateUser, analysisRoutes.cancel);
 app.get('/api/projects/:projectId/results', authenticateUser, analysisRoutes.getResults);
 
 app.post('/analyze-all-claims', (req, res) => {

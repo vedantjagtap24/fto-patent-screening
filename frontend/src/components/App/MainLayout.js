@@ -28,8 +28,10 @@ const MainLayout = ({ user, session, onLogout }) => {
     currentlyProcessing: '',
     startTime: null,
     elapsedTime: 0,
-    phase: null
+    phase: null,
+    notice: ''
   });
+  const cancelRequested = useRef(false);
 
   // Effects (consolidated)
   useEffect(() => {
@@ -77,17 +79,32 @@ const MainLayout = ({ user, session, onLogout }) => {
         const { status, processed, total } = data;
         const progress = total ? Math.min(99, Math.round((processed / total) * 100)) : 0;
 
-        if (status === 'completed') {
+        if (status === 'completed' || status === 'draft') {
+          // 'draft' means the run was cancelled: show what finished before that
           const resultsData = await apiCall(`/api/projects/${projectId}/results`);
           if (cancelled) return;
+          const results = resultsData.results || [];
           updateAppState({
-            results: resultsData.results || [],
-            progress: 100,
-            processedCount: total,
-            currentlyProcessing: 'Analysis complete',
+            results,
+            progress: status === 'completed' ? 100 : progress,
+            processedCount: status === 'completed' ? total : processed,
+            currentlyProcessing: status === 'completed' ? 'Analysis complete' : '',
             isProcessing: false,
-            phase: null
+            phase: null,
+            notice: status === 'draft'
+              ? `Analysis cancelled. ${results.length} of ${total} patents were analyzed before it stopped.`
+              : ''
           });
+        } else if (status === 'interrupted') {
+          updateAppState({
+            isProcessing: false,
+            phase: null,
+            progress: 0,
+            currentlyProcessing: '',
+            notice: 'Your previous analysis was interrupted when the server restarted. Upload your file and click Start analysis to run it again.'
+          });
+        } else if (status === 'cancelling') {
+          updateAppState({ progress, processedCount: processed, currentlyProcessing: 'Cancelling after the current batch…' });
         } else if (status === 'error') {
           updateAppState({ isProcessing: false, phase: null, error: 'The analysis stopped because of a server error. Please try again.' });
         } else {
@@ -254,7 +271,7 @@ const MainLayout = ({ user, session, onLogout }) => {
   // Sent in chunks so large spreadsheets don't hit request size or time limits
   const CLAIMS_CHUNK_SIZE = 200;
   const saveClaims = async (projectId, claims, onProgress) => {
-    for (let offset = 0; offset < claims.length; offset += CLAIMS_CHUNK_SIZE) {
+    for (let offset = 0; offset < claims.length && !cancelRequested.current; offset += CLAIMS_CHUNK_SIZE) {
       await apiCall(`/api/projects/${projectId}/claims`, 'POST', {
         claims: claims.slice(offset, offset + CLAIMS_CHUNK_SIZE),
         append: offset > 0,
@@ -276,10 +293,12 @@ const MainLayout = ({ user, session, onLogout }) => {
     }
 
     const total = appState.claims.length;
+    cancelRequested.current = false;
     updateAppState({
       isProcessing: true,
       phase: 'uploading',
       error: '',
+      notice: '',
       results: [],
       startTime: Date.now(),
       elapsedTime: 0,
@@ -305,6 +324,11 @@ const MainLayout = ({ user, session, onLogout }) => {
         updateAppState({ currentlyProcessing: `Uploading claims: ${saved} of ${total}…` });
       });
 
+      if (cancelRequested.current) {
+        updateAppState({ isProcessing: false, phase: null, currentlyProcessing: '', notice: 'Analysis cancelled before it started. Nothing was analyzed.' });
+        return;
+      }
+
       // The server answers right away and keeps analyzing; progress comes from polling
       await apiCall(`/api/projects/${project.id}/analyze`, 'POST');
       updateAppState({
@@ -322,6 +346,20 @@ const MainLayout = ({ user, session, onLogout }) => {
     }
   };
 
+  const cancelAnalysis = async () => {
+    cancelRequested.current = true;
+    updateAppState({ currentlyProcessing: 'Cancelling…' });
+
+    // While uploading, the upload loop sees the flag and stops on its own
+    if (appState.phase !== 'analyzing' || !appState.currentProject) return;
+
+    try {
+      await apiCall(`/api/projects/${appState.currentProject.id}/cancel`, 'POST');
+    } catch (error) {
+      updateAppState({ error: `Could not cancel: ${error.message}` });
+    }
+  };
+
   const clearAllData = () => {
     setAppState({
       currentProject: null,
@@ -336,7 +374,8 @@ const MainLayout = ({ user, session, onLogout }) => {
       error: '',
       features: [],
       isProcessing: false,
-      phase: null
+      phase: null,
+      notice: ''
     });
   };
 
@@ -362,6 +401,7 @@ const MainLayout = ({ user, session, onLogout }) => {
       addFeature,
       removeFeature,
       startBulkScreening,
+      cancelAnalysis,
       clearAllData,
       formatElapsedTime
     };

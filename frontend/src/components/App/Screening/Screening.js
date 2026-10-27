@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { UploadCloud, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X, Search, ChevronDown, RotateCcw, ExternalLink, FileSpreadsheet } from 'lucide-react';
+import { UploadCloud, Play, Download, AlertCircle, CheckCircle, Clock, Eye, Plus, X, Search, ChevronDown, RotateCcw, ExternalLink, FileSpreadsheet, Info, Square } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import './Screening.css';
 
 const Screening = ({ 
   backendStatus, file, setFile, claims, setClaims, isProcessing, progress, results, error, setError,
   processedCount, currentlyProcessing, elapsedTime, features, addFeature, removeFeature,
-  startBulkScreening, clearAllData, formatElapsedTime
+  startBulkScreening, cancelAnalysis, clearAllData, formatElapsedTime, notice
 }) => {
   const [uiState, setUiState] = useState({
     searchTerm: '', currentPage: 1, selectedRankFilter: null, selectedFeatureFilter: null,
@@ -361,6 +361,12 @@ const Screening = ({
                 Start over
               </button>
             )}
+            {isProcessing && (
+              <button className="btn btn-secondary btn-lg" onClick={cancelAnalysis}>
+                <Square size={14} />
+                Cancel
+              </button>
+            )}
             <button onClick={startBulkScreening} disabled={!canStart} className="btn btn-primary btn-lg">
               <Play size={16} />
               {isProcessing ? 'Analyzing…' : 'Start analysis'}
@@ -387,6 +393,13 @@ const Screening = ({
           </div>
         )}
       </section>
+
+      {notice && !isProcessing && (
+        <div className="alert alert-info">
+          <Info size={18} />
+          <p>{notice}</p>
+        </div>
+      )}
 
       {error && (
         <div className="alert alert-error">

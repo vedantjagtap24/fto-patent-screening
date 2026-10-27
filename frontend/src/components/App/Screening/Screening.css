@@ -267,6 +267,11 @@
   margin-top: 1px;
 }
 
+.alert-info {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
 .alert-error {
   background: var(--danger-soft);
   color: var(--danger);
