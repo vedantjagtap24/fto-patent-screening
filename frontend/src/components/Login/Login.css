@@ -12,9 +12,29 @@
   justify-content: space-between;
   gap: 2rem;
   padding: 2.5rem 3rem;
-  background: #111a33;
-  background-image: radial-gradient(circle at 15% 0%, rgba(109, 139, 255, 0.28), transparent 55%);
   color: #fff;
+  /* Blueprint grid over a bright blue gradient */
+  background-color: #2f5be0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    radial-gradient(circle at 80% 10%, rgba(125, 211, 252, 0.45), transparent 50%),
+    linear-gradient(160deg, #3d6df2 0%, #2a4fd1 60%, #2444b8 100%);
+  background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
+}
+
+.patent-illustration {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  height: auto;
+  margin-bottom: 2rem;
+}
+
+@media (max-height: 760px) {
+  .patent-illustration {
+    display: none;
+  }
 }
 
 .login-brand-logo,
@@ -54,7 +74,7 @@
   align-items: center;
   gap: 0.75rem;
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .login-check {
@@ -65,13 +85,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: #a9bbff;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .login-brand-footer {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 /* ===== FORM ===== */

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, FileSearch, Check, Info } from 'lucide-react';
 import { signIn } from '../../lib/supabase';
+import PatentIllustration from './PatentIllustration';
 import './Login.css';
 
 const PasswordInput = ({ value, onChange, onKeyPress, placeholder, show, onToggle }) => (
@@ -128,6 +129,7 @@ const Login = ({ onLogin }) => {
         </div>
 
         <div className="login-brand-body">
+          <PatentIllustration />
           <h2 className="login-brand-title">Freedom to Operate screening, in hours instead of weeks.</h2>
           <ul className="login-highlights">
             {highlights.map(item => (
