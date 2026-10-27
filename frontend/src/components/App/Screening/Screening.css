@@ -755,6 +755,11 @@
   color: var(--text-2);
 }
 
+.locked-text strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
 .locked-modal .btn {
   margin-top: 0.5rem;
   padding: 0 1.75rem;

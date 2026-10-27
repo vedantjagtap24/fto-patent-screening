@@ -466,7 +466,7 @@ const MainLayout = ({ user, session, onLogout }) => {
 
   // Navigation items
   const navigationItems = [
-    { id: 'home', label: 'Overview', icon: HomeIcon, subtitle: 'Your latest screening at a glance' },
+    { id: 'home', label: 'Home', icon: HomeIcon, subtitle: 'Your latest screening at a glance' },
     { id: 'screening', label: 'Screening', icon: Filter, subtitle: 'Upload claims, define features and run the analysis' }
   ];
   const activeItem = navigationItems.find(item => item.id === activeModule) || navigationItems[0];
@@ -524,8 +524,6 @@ const MainLayout = ({ user, session, onLogout }) => {
     }
   };
 
-  const statusLabel = backendStatus === 'connected' ? 'All systems online' :
-                      backendStatus === 'checking' ? 'Connecting…' : 'Server offline';
 
   return (
     <div className="app-shell">
@@ -572,11 +570,6 @@ const MainLayout = ({ user, session, onLogout }) => {
             </div>
           )}
 
-          {/* System status */}
-          <div className="status-indicator">
-            <span className={`status-dot status-${backendStatus}`} />
-            <span>{statusLabel}</span>
-          </div>
         </div>
       </aside>
 

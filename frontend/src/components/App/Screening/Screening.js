@@ -654,8 +654,8 @@ const Screening = ({
             <span className="locked-icon"><Lock size={22} /></span>
             <h2 className="modal-title">Analysis already completed</h2>
             <p className="locked-text">
-              This demo shows a finished screening of {claims.length || progressTotal} patents against {features.length} product features.
-              Running a new analysis is turned off because every run uses paid OpenAI credits.
+              This demo shows a finished screening of {(claims.length || progressTotal).toLocaleString()} patents against {features.length} product features.
+              Running a new analysis is turned off because every run uses paid <strong>OpenAI credits</strong>.
             </p>
             <p className="locked-text">The full results are below. Filter by rank or feature, open any patent's reasoning, or export to Excel.</p>
             <button
