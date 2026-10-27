@@ -160,6 +160,11 @@ const MainLayout = ({ user, session, onLogout }) => {
     };
   }, [appState.isProcessing, appState.phase, projectId]);
 
+  // Each page opens at the top rather than where the previous one was scrolled to
+  useEffect(() => {
+    document.querySelector('.main-content')?.scrollTo(0, 0);
+  }, [activeModule]);
+
   // API Helper
   const apiCall = async (endpoint, method = 'GET', body = null) => {
     const headers = {
@@ -491,9 +496,23 @@ const MainLayout = ({ user, session, onLogout }) => {
     };
 
     switch (activeModule) {
-      case 'home': return <Home onNavigate={setActiveModule} analysisLocked={analysisLocked} />;
+      case 'home': return (
+        <Home
+          onNavigate={setActiveModule}
+          analysisLocked={analysisLocked}
+          results={appState.results}
+          features={appState.features}
+        />
+      );
       case 'screening': return <Screening {...moduleProps} />;
-      case 'dashboard': return <Dashboard onNavigate={setActiveModule} />;
+      case 'dashboard': return (
+        <Dashboard
+          onNavigate={setActiveModule}
+          results={appState.results}
+          features={appState.features}
+          dataLoading={appState.dataLoading}
+        />
+      );
       default: return <Home onNavigate={setActiveModule} />;
     }
   };

@@ -427,12 +427,35 @@ const Screening = ({
       {/* ===== RESULTS ===== */}
       {results.length > 0 && (
         <section className="results">
-          <div className="results-heading">
-            <h2 className="results-title">Results</h2>
-            <span className="results-count">
-              {results.length} patents analyzed
-              {isProcessing && ' so far · updates every 30 seconds'}
-            </span>
+          <div className="results-hero blueprint">
+            <div className="results-heading">
+              <div>
+                <h2 className="results-title">Results</h2>
+                <span className="results-count">
+                  {results.length.toLocaleString()} patents analyzed
+                  {isProcessing ? ' so far · updates every 30 seconds' : ' · click a rank to filter the table'}
+                </span>
+              </div>
+            </div>
+
+            <div className="stat-grid">
+              {[1, 2, 3, 4].map(rank => (
+                <button
+                  key={rank}
+                  className={`stat-tile ${uiState.selectedRankFilter === rank ? 'active' : ''}`}
+                  onClick={() => rankStats[`rank${rank}`] > 0 && handleFilter('rank', rank)}
+                  disabled={rankStats[`rank${rank}`] === 0}
+                >
+                  <span className={`stat-dot rank-dot-${rank}`} />
+                  <span className="stat-label">Rank {rank}</span>
+                  <span className="stat-value">{rankStats[`rank${rank}`].toLocaleString()}</span>
+                  <span className="stat-hint">
+                    {rankDescriptions[rank]}
+                    {results.length > 0 && ` · ${Math.round((rankStats[`rank${rank}`] / results.length) * 100)}%`}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {failedResults.length > 0 && !isProcessing && (
@@ -444,22 +467,6 @@ const Screening = ({
               </p>
             </div>
           )}
-
-          <div className="stat-grid">
-            {[1, 2, 3, 4].map(rank => (
-              <button
-                key={rank}
-                className={`stat-tile card ${uiState.selectedRankFilter === rank ? 'active' : ''}`}
-                onClick={() => rankStats[`rank${rank}`] > 0 && handleFilter('rank', rank)}
-                disabled={rankStats[`rank${rank}`] === 0}
-              >
-                <span className={`stat-dot rank-dot-${rank}`} />
-                <span className="stat-label">Rank {rank}</span>
-                <span className="stat-value">{rankStats[`rank${rank}`]}</span>
-                <span className="stat-hint">{rankDescriptions[rank]}</span>
-              </button>
-            ))}
-          </div>
 
           <div className="results-panel card">
             <div className="toolbar">

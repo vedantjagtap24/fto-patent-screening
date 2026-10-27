@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Check, X } from 'lucide-react';
+import useCountUp from '../../hooks/useCountUp';
 
 const FEATURES = [
   { label: 'Robotic-assisted instruments', match: true },
@@ -7,27 +8,6 @@ const FEATURES = [
   { label: 'Tremor reduction', match: true },
   { label: 'Biomimetic hand design', match: false }
 ];
-
-// Counts up from 0 once, for the "patents screened" figure
-const useCountUp = (target, duration = 1800) => {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      setValue(target);
-      return undefined;
-    }
-    let frame;
-    const start = performance.now();
-    const tick = (now) => {
-      const t = Math.min(1, (now - start) / duration);
-      setValue(Math.round(target * (1 - Math.pow(1 - t, 3))));
-      if (t < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [target, duration]);
-  return value;
-};
 
 // Animated hero for the login page: a patent sheet being scanned while feature
 // checks and a rank verdict appear beside it. Leans gently toward the pointer.

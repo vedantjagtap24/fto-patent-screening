@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Lightbulb, Target, Zap, Layers, Search, List, X, ArrowRight, FileSpreadsheet, ListChecks, ShieldCheck, ChevronRight } from 'lucide-react';
+import useCountUp from '../../../hooks/useCountUp';
+import { computeDashboardStats } from '../Dashboard/dashboardStats';
 import './Home.css';
 
-const Home = ({ onNavigate, analysisLocked }) => {
+const Home = ({ onNavigate, analysisLocked, results = [], features = [] }) => {
   const [activeModal, setActiveModal] = useState(null);
 
   const modalData = {
@@ -174,29 +176,59 @@ const Home = ({ onNavigate, analysisLocked }) => {
     }
   ];
 
+  // Headline numbers from the latest run, counted up when the page opens
+  const stats = useMemo(() => computeDashboardStats(results, features), [results, features]);
+  const screened = useCountUp(stats.total);
+  const highPriority = useCountUp(stats.highPriority);
+  const hasRun = stats.total > 0;
+
   return (
     <>
       <div className="home">
-        <section className="home-hero card">
+        <section className="home-hero blueprint">
           <div className="hero-text">
-            <span className="hero-eyebrow">Freedom to Operate screening</span>
-            <h2 className="hero-title">Find the patents that could block your product, before they do.</h2>
+            <span className="blueprint-eyebrow">Freedom to Operate screening</span>
+            <h2 className="hero-title">Find the patents that could block your product, <em>before they do.</em></h2>
             <p className="hero-subtitle">
               FTOlyzer reads every patent claim, checks it against your product's features with AI,
               and ranks the claims that overlap most so your team knows where to look first.
             </p>
+
+            {hasRun && (
+              <dl className="hero-stats">
+                <div>
+                  <dt>{screened.toLocaleString()}</dt>
+                  <dd>patents screened</dd>
+                </div>
+                <div>
+                  <dt>{highPriority.toLocaleString()}</dt>
+                  <dd>high priority (Rank 1–2)</dd>
+                </div>
+                <div>
+                  <dt>{features.length}</dt>
+                  <dd>product features</dd>
+                </div>
+              </dl>
+            )}
+
             <div className="hero-actions">
-              <button className="btn btn-primary btn-lg" onClick={() => onNavigate('screening')}>
-                {analysisLocked ? 'View the completed analysis' : 'Start screening'}
+              <button className="btn btn-light btn-lg" onClick={() => onNavigate('screening')}>
+                {analysisLocked ? 'View the results' : 'Start screening'}
                 <ArrowRight size={18} />
               </button>
-              <button className="btn btn-secondary btn-lg" onClick={() => openModal('methodology')}>
-                How ranking works
-              </button>
+              {hasRun ? (
+                <button className="btn btn-glass btn-lg" onClick={() => onNavigate('dashboard')}>
+                  Open dashboard
+                </button>
+              ) : (
+                <button className="btn btn-glass btn-lg" onClick={() => openModal('methodology')}>
+                  How ranking works
+                </button>
+              )}
             </div>
           </div>
 
-          <ol className="hero-steps">
+          <ol className="hero-steps glass">
             {steps.map((step, index) => (
               <li key={step.title} className="hero-step">
                 <span className="hero-step-icon">{step.icon}</span>
