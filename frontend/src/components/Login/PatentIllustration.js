@@ -3,7 +3,7 @@ import React from 'react';
 // Decorative patent sheet for the login panel: a "FIG. 1" drawing with
 // reference numerals, claim lines, and one claim flagged as a feature match.
 const PatentIllustration = () => (
-  <svg className="patent-illustration" viewBox="0 0 440 300" fill="none" aria-hidden="true">
+  <svg className="patent-illustration" viewBox="0 0 440 300" preserveAspectRatio="xMinYMid meet" fill="none" aria-hidden="true">
     {/* Back sheet */}
     <g transform="rotate(-6 220 150)" opacity="0.5">
       <rect x="70" y="26" width="250" height="250" rx="10" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.35)" />

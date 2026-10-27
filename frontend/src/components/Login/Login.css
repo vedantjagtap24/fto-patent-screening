@@ -1,7 +1,7 @@
 .login-page {
   display: grid;
   grid-template-columns: minmax(380px, 0.9fr) minmax(0, 1.1fr);
-  min-height: 100vh;
+  height: 100vh;
   background: var(--bg);
 }
 
@@ -11,6 +11,7 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 2rem;
+  min-height: 0;
   padding: 2.5rem 3rem;
   color: #fff;
   /* Blueprint grid over a bright blue gradient */
@@ -21,20 +22,6 @@
     radial-gradient(circle at 80% 10%, rgba(125, 211, 252, 0.45), transparent 50%),
     linear-gradient(160deg, #3d6df2 0%, #2a4fd1 60%, #2444b8 100%);
   background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
-}
-
-.patent-illustration {
-  display: block;
-  width: 100%;
-  max-width: 440px;
-  height: auto;
-  margin-bottom: 2rem;
-}
-
-@media (max-height: 760px) {
-  .patent-illustration {
-    display: none;
-  }
 }
 
 .login-brand-logo,
@@ -94,12 +81,31 @@
   color: rgba(255, 255, 255, 0.72);
 }
 
+/* Illustration takes whatever height is left and shrinks on short windows */
+.login-brand-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.patent-illustration {
+  display: block;
+  flex: 0 1 300px;
+  min-height: 160px;
+  width: 100%;
+  max-width: 440px;
+  margin-bottom: 1.75rem;
+}
+
 /* ===== FORM ===== */
 .login-main {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
+  overflow-y: auto;
 }
 
 .login-card {
@@ -222,6 +228,8 @@
 @media (max-width: 860px) {
   .login-page {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
   }
 
   .login-brand {
@@ -237,3 +245,29 @@
     color: #fff;
   }
 }
+
+/* Short windows: drop the bullet list and footer so the drawing keeps its size */
+@media (max-height: 780px) {
+  .login-brand {
+    padding: 2rem 3rem;
+  }
+
+  .login-brand-title {
+    font-size: 24px;
+  }
+
+  .login-highlights {
+    display: none;
+  }
+}
+
+@media (max-height: 600px) {
+  .login-brand-footer {
+    display: none;
+  }
+
+  .patent-illustration {
+    margin-bottom: 1.25rem;
+  }
+}
+
