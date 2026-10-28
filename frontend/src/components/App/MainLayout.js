@@ -5,7 +5,7 @@ import Home from './Home/Home';
 import Screening from './Screening/Screening';
 import './MainLayout.css';
 
-const REPO_URL = 'https://github.com/vedantjagtap24/fto-patent-screening';
+const REPO_URL = 'https://github.com/vedantjagtap24/ftolyzer';
 const AUTHOR_EMAIL = 'vsj7589@nyu.edu';
 
 const MainLayout = ({ user, session, onLogout }) => {

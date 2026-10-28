@@ -1,5 +1,5 @@
 {
-  "name": "fto-patent-screening",
+  "name": "ftolyzer",
   "version": "1.0.0",
   "description": "FTOlyzer: Freedom to Operate patent screening with GPT-4.1",
   "author": "Vedant Jagtap <vsj7589@nyu.edu>",
