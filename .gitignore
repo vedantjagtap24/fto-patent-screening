@@ -1,7 +1,17 @@
+# Dependencies
 node_modules/
-.env
-.DS_Store
-*.log
-dist/
+
+# Secrets and local settings
 .env
 .env.local
+
+# Build output from `npm run build` inside frontend/
+# (the deployed copy lives in backend/public; see README)
+frontend/build/
+
+# OS and editor files
+.DS_Store
+*.log
+
+# Office lock files
+~$*

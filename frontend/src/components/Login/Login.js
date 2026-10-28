@@ -229,7 +229,8 @@ const Login = ({ onLogin }) => {
 
       <footer className="login-footer">
         Developed by <strong>Vedant Jagtap</strong> ·{' '}
-        <a href="mailto:vsj7589@nyu.edu">vsj7589@nyu.edu</a>
+        <a href="mailto:vsj7589@nyu.edu">vsj7589@nyu.edu</a> ·{' '}
+        <a href="https://github.com/vedantjagtap24/fto-patent-screening" target="_blank" rel="noopener noreferrer">GitHub</a>
       </footer>
     </div>
   );

@@ -607,15 +607,6 @@ app.get('/api/projects/:projectId/results', authenticateUser, analysisRoutes.get
 
 app.get('/api/public/summary', publicSummary);
 
-app.post('/analyze-all-claims', (req, res) => {
-  res.status(400).json({
-    success: false,
-    error: 'Please update to the new authentication system',
-    message: 'This endpoint requires user authentication. Please log out and log back in.',
-    results: []
-  });
-});
-
 app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
