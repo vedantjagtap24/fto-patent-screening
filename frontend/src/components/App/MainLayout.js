@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Filter, Home as HomeIcon, Moon, Sun, LogOut, Clock, FileSearch, ChevronDown, Github, Mail, Lock } from 'lucide-react';
+import { Filter, Home as HomeIcon, Moon, Sun, LogOut, Clock, FileSearch, ChevronDown, Github } from 'lucide-react';
 import { signOut } from '../../lib/supabase';
 import Home from './Home/Home';
 import Screening from './Screening/Screening';
@@ -574,16 +574,6 @@ const MainLayout = ({ user, session, onLogout }) => {
           )}
 
           <div className="sidebar-about">
-            {analysisLocked && (
-              <p className="sidebar-demo">
-                <Lock size={13} />
-                Demo mode · results from a completed run
-              </p>
-            )}
-            <p className="sidebar-credit">Built by <strong>Vedant Jagtap</strong></p>
-            <a className="sidebar-link" href={`mailto:${AUTHOR_EMAIL}`}>
-              <Mail size={14} /> {AUTHOR_EMAIL}
-            </a>
             <a className="sidebar-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">
               <Github size={14} /> View source on GitHub
             </a>
